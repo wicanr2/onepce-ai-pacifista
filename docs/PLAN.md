@@ -149,6 +149,8 @@ CPU／VDC 內部的時序狀態機不外露。RPC 與 CLI 是 `onepce` 套件的
 
 ## 八、里程碑
 
+M0–M4 於 2026-09-05 完成（現況見 `CONTEXT.md`）。
+
 | 里程碑 | 內容 | 驗收 |
 |---|---|---|
 | M0 骨架 | repo、`LICENSE`、`CLAUDE.md`、Docker image（Go 1.25 鎖版）、gate 命令、位址格式、`onepce` 介面型別（無實作） | gate 綠；`go vet` 過；介面文件與本檔一致 |

@@ -16,7 +16,7 @@ GUI（M6）在 MVP 之後。
 | M1 CPU | 完成（2026-09-04）：`internal/huc6280` 全指令、逐存取計時、逐週期中斷取樣；Nectaris 開機 trace 前 160,000 條與 Mesen2 逐指令相同（`docs/spec/huc6280.md` §9） |
 | M2 匯流排＋VDC/VCE | 完成第一版（2026-09-05）：`internal/bus`（384 KB 鏡像、timer、I/O 頁）、`internal/vdc`（scanline 級、實測事件時點）、`internal/vce`、`internal/machine`；REVOLT 路線 frame 2400／2600／3000 的 VRAM／SAT／色盤與 Mesen2 逐 word 相同，RAM 除堆疊頁與兩個計時位元組外相同（`docs/spec/machine.md`） |
 | M3 觀測層 | 完成（2026-09-05）：根套件 `onepce.Machine`（Watch 區間／種類／空間、配額與略過計數、忽略清單、Trace 與結構雜湊、區段快照、framebuffer）、savestate（JSON 頭＋gob，S5 決定性測試）；re/203 的外框寫入端以 watch 重現：2,323 個地圖圖塊 word 全為 set-only、寫入端全在 `$A1F5–$A3CF` |
-| M4 CLI／RPC／oracle 助手／nectaris 客戶端 | 未開始 |
+| M4 CLI／RPC／nectaris 客戶端 | 完成（2026-09-05）：`cmd/onepce run`（press／watch／screenshot／snapshot-dir／save／load／trace-hash）與 `rpc`（JSON-RPC 2.0 over stdio，`internal/rpc`）；CLI 走 P-100 路線輸出 10,000 筆事件＋略過 39,379 筆、320×240 截圖目視為戰術畫面含移動範圍；`nectaris-cht/oracle/onepce/` 三條 `go test` 在 `NECTARIS_ROM` 下綠。**MVP 達成**：`oracle/` 助手套件未另立（比對邏輯在 `internal/machine` 測試與 nectaris 測試裡） |
 
 ## Worklist
 
@@ -26,7 +26,8 @@ GUI（M6）在 MVP 之後。
 | W2 | M1 CPU | 完成；殘餘：VRAM 存取 stall 未模擬，trace 對照以 160,000 條為界（`huc6280.md` §9） |
 | W3 | M2 匯流排＋VDC/VCE | 完成第一版；殘餘：framebuffer 尚未與 P-159 解幀對照（VRAM 相同，繪製正確性待 M4 的截圖工具目視） |
 | W4 | M3 觀測層 | 完成；`outline_oracle_test.go` 在 `ONEPCE_ROM` 下綠 |
-| W5 | M4：CLI、JSON-RPC、`oracle/`、`nectaris-cht` 三條 `go test` | 三條測試在 `NECTARIS_ROM` 下綠 |
+| W5 | M4 CLI／RPC／nectaris 客戶端 | 完成 |
+| W6 | MVP 之後：VRAM 存取 stall（讓 trace 對照穿過 timer 相位）、framebuffer 對 P-159 解幀、PSG（M5）、對拍 GUI（M6）、`oracle/` 比對助手套件化 | 各自寫 spec 再做 |
 
 ## 已裁定決策
 

@@ -47,7 +47,17 @@
   `outline_oracle_test.go`：RUN×6 → right×7 → down×4 → I → I，frame 2500–2800 監看
   `$5480–$7920` 的 VRAM 寫入，2,323 個改寫 word 全部只設位元、寫入端全在 `$A1F5–$A3CF`。
 
-## 下一個最小動作
+- M4（2026-09-05）：`docs/spec/cli-rpc.md` → `plan.go`（`ParsePresses`／`ButtonByName`）、
+  `internal/rpc`（JSON-RPC 2.0，14 個方法，事件佇列上限 100,000）、`cmd/onepce`。
+  CLI 實跑：RUN×6 → right×7 → down×4 → I → I 到 frame 2800，`-watch write:vram:5480-7920`
+  記 10,000 筆、略過 39,379 筆（預設上限），截圖 320×240 目視為 REVOLT 戰術畫面含白色
+  移動範圍格線，trace 雜湊 72,299,794 條指令。
+  nectaris 端 `oracle/onepce/`（獨立子模組）三條測試綠：re/048 九個 sprite 全在、re/234 的
+  +4 規則對全部單位成立、P-131 的 169 個圖塊 1,215 像素全為 15。
+- **MVP（M0–M4）達成。**
 
-1. M4：`docs/spec/cli-rpc.md` → `cmd/onepce`（run／screenshot／snapshot／trace／watch／state）、
-   JSON-RPC over stdio、`oracle/` 助手，在 `nectaris-cht` 接第一批 `go test`。
+## 下一個最小動作（MVP 之後，各自先寫 spec）
+
+1. VRAM 存取 stall 與 VDC 忙碌旗標（`vdc-vce.md` §8 第一列），目標是 trace 對照穿過 timer 相位。
+2. framebuffer 對 P-159 解幀逐像素比（M2 殘餘）。
+3. M5 PSG、M6 對拍 GUI（`docs/PLAN.md` §八）。

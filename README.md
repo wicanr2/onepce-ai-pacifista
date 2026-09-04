@@ -6,7 +6,37 @@
 watchpoint 帶完整 MPR、區段快照有標籤、輸入以 frame 腳本化且決定性、畫面以原生像素輸出、
 PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wicanr2/nectaris-cht)。
 
-規劃書：[`docs/PLAN.md`](docs/PLAN.md)（草案，含待決事項）。目前沒有程式碼。
+規劃書：[`docs/PLAN.md`](docs/PLAN.md)；狀態與 worklist：[`CONTEXT.md`](CONTEXT.md)。
+
+## MVP（M0–M4，2026-09-05）
+
+- **CPU**：HuC6280 全指令、逐存取計時、逐週期中斷取樣。Nectaris 開機 trace 前 160,000 條
+  與 Mesen2 逐指令相同（分歧原因與界限記在 `docs/spec/huc6280.md` §9）。
+- **VDC／VCE／匯流排／整機**：scanline 級 VDC，frame 內事件照實測時點排程。REVOLT 路線
+  frame 2400／2600／3000 的 VRAM、SAT、色盤與 Mesen2 逐 word 相同（`docs/spec/machine.md`）。
+- **觀測**：區間 watch（read／write／exec，CPU 與 VRAM 空間，DMA 可見）、配額與略過計數、
+  忽略清單、trace 結構雜湊、區段快照、原生 framebuffer、savestate。
+- **介面**：Go library（根套件 `onepce`）、`cmd/onepce`（`run`／`rpc`）、JSON-RPC over stdio。
+- **第一個客戶**：`nectaris-cht/oracle/onepce/` 三條 `go test` 把 re/048、re/175、re/234 的
+  實測值改寫成可重跑的測試。
+
+```go
+m, _ := onepce.Load(rom)
+m.Schedule(onepce.Press{Frame: 1680, Button: onepce.ButtonRun, Span: 15})
+w := m.Watch(onepce.Write, onepce.VRAM, 0x5480, 0x7920, func(e onepce.Event) { /* 帶 MPR 的事件 */ })
+m.RunToFrame(2800)
+snap := m.Snapshot(onepce.SectionVRAM, onepce.SectionSAT)   // 有標籤、有雜湊
+img := m.Framebuffer()                                     // 原生 320×240（依 VDC 設定）
+fmt.Println(w.Count(), w.Skipped())                        // 略過筆數一定要看
+```
+
+```bash
+onepce run -rom X.pce -press "1680:run:15,…" -to-frame 2800   -watch write:vram:5480-7920 -screenshot out.png -snapshot-dir snap -save f2800.state -trace-hash
+onepce rpc -rom X.pce      # JSON-RPC 2.0，每行一個請求
+```
+
+建置與測試都在容器裡（`CLAUDE.md` §3）；oracle 測試以 `ONEPCE_ROM`／`ONEPCE_FIXTURES`／
+`ONEPCE_STATE_FIXTURES` 開關，沒設就 skip。
 
 ## 範圍
 
