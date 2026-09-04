@@ -15,6 +15,9 @@ PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wi
 
 ## 授權、致謝與聲明
 
-授權條款**待裁定**：`LICENSE` 目前是 RRSAL-1.0（復古重製 source-available 授權條款），
-但實作以 Mesen2（GPL-3.0）的原始碼為參考，兩者有衝突；取捨見 `docs/PLAN.md` 第三節。
+採 **RRSAL-1.0**（復古重製 source-available 授權條款），全文見 `LICENSE`：非商業用途免費
+（含修改與再散布），商業用途請洽 `wicanr2@gmail.com`。
+
+參考來源的邊界：Mesen2（GPL-3.0）只作**行為事實**與執行期 oracle，不翻譯其程式碼；
+結構參考 ares（ISC），併入處會在 `NOTICE.md` 保留其版權聲明。細則在 `docs/PLAN.md` 第三節。
 本儲存庫不含任何遊戲 ROM、BIOS 或由原版資料重建的素材。
