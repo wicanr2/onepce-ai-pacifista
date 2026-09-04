@@ -46,13 +46,23 @@ type State struct {
 	BG, SPR, NextBG, NextSPR, Burst                bool
 
 	SATBPending, SATBRunning bool
-	SATBDoneAt               uint64
-	DMAPending, DMARunning   bool
-	DMADoneAt                uint64
+	SATBOffset, SATBCounter  int
+	DMARunning, DMAReadCycle bool
+	DMACounter               int
+	DMABuffer                uint16
 
 	FBW, FBH        int
 	FBDot0, FBLine0 int
 	FB              []uint16
+
+	HMode, HModeEnd     int
+	HSyncStart          uint64
+	PendRead, PendWrite bool
+	PendDelay           int
+	VWRData             uint16
+	BGStart, BGEnd      int
+	EvalStart           int
+	SprPrev, SprNext    int
 }
 
 // Save copies the controller state out.
@@ -70,9 +80,12 @@ func (d *VDC) Save() State {
 		DoneLatchY: d.doneLatchY, DoneLatchX: d.doneLatchX, DoneIRQ: d.doneIRQ, DoneRCR: d.doneRCR, DoneHDW: d.doneHDW,
 		NeedVBlank: d.needVBlank, VBlankDone: d.vblankDone, AllowDMA: d.allowDMA, OverflowLine: d.overflowLine,
 		Status: d.status, BG: d.bg, SPR: d.spr, NextBG: d.nextBg, NextSPR: d.nextSpr, Burst: d.burst,
-		SATBPending: d.satbPending, SATBRunning: d.satbRunning, SATBDoneAt: d.satbDoneAt,
-		DMAPending: d.dmaPending, DMARunning: d.dmaRunning, DMADoneAt: d.dmaDoneAt,
+		SATBPending: d.satbPending, SATBRunning: d.satbRunning, SATBOffset: d.satbOffset, SATBCounter: d.satbCounter,
+		DMARunning: d.dmaRunning, DMAReadCycle: d.dmaReadCycle, DMACounter: d.dmaCounter, DMABuffer: d.dmaBuffer,
 		FBW: d.fbW, FBH: d.fbH, FBDot0: d.fbDot0, FBLine0: d.fbLine0,
+		HMode: d.hMode, HModeEnd: d.hModeEnd, HSyncStart: d.hsyncStart,
+		PendRead: d.pendRead, PendWrite: d.pendWrite, PendDelay: d.pendDelay, VWRData: d.vwrData,
+		BGStart: d.bgStart, BGEnd: d.bgEnd, EvalStart: d.evalStart, SprPrev: d.sprPrev, SprNext: d.sprNext,
 	}
 	s.FB = append([]uint16(nil), d.fb...)
 	return s
@@ -93,10 +106,14 @@ func (d *VDC) Restore(s State) {
 	d.doneLatchY, d.doneLatchX, d.doneIRQ, d.doneRCR, d.doneHDW = s.DoneLatchY, s.DoneLatchX, s.DoneIRQ, s.DoneRCR, s.DoneHDW
 	d.needVBlank, d.vblankDone, d.allowDMA, d.overflowLine = s.NeedVBlank, s.VBlankDone, s.AllowDMA, s.OverflowLine
 	d.status, d.bg, d.spr, d.nextBg, d.nextSpr, d.burst = s.Status, s.BG, s.SPR, s.NextBG, s.NextSPR, s.Burst
-	d.satbPending, d.satbRunning, d.satbDoneAt = s.SATBPending, s.SATBRunning, s.SATBDoneAt
-	d.dmaPending, d.dmaRunning, d.dmaDoneAt = s.DMAPending, s.DMARunning, s.DMADoneAt
+	d.satbPending, d.satbRunning, d.satbOffset, d.satbCounter = s.SATBPending, s.SATBRunning, s.SATBOffset, s.SATBCounter
+	d.dmaRunning, d.dmaReadCycle, d.dmaCounter, d.dmaBuffer = s.DMARunning, s.DMAReadCycle, s.DMACounter, s.DMABuffer
 	d.fbW, d.fbH = s.FBW, s.FBH
 	d.fbDot0, d.fbLine0 = s.FBDot0, s.FBLine0
+	d.hMode, d.hModeEnd, d.hsyncStart = s.HMode, s.HModeEnd, s.HSyncStart
+	d.pendRead, d.pendWrite, d.pendDelay, d.vwrData = s.PendRead, s.PendWrite, s.PendDelay, s.VWRData
+	d.bgStart, d.bgEnd, d.sprPrev, d.sprNext = s.BGStart, s.BGEnd, s.SprPrev, s.SprNext
+	d.evalStart = s.EvalStart
 	d.fb = append([]uint16(nil), s.FB...)
 	d.lineSpr = d.lineSpr[:0]
 }

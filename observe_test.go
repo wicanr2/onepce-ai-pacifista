@@ -108,6 +108,9 @@ func TestSnapshotSectionsAndDiff(t *testing.T) {
 	m := loadProbe(t)
 	before := m.Snapshot()
 	run(m, 12)
+	// The VRAM word sits in the VDC's access queue until a free slot
+	// (docs/spec/vdc-vce.md §5.1); the probe's final loop lets it land.
+	run(m, 40)
 	after := m.Snapshot()
 	if after.RAM[0x10] != 0x42 || after.VRAM[0x1234] != 0xBEEF {
 		t.Fatal("snapshot did not capture the writes")

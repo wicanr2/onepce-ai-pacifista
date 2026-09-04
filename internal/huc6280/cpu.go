@@ -55,6 +55,11 @@ type Bus interface {
 	// PendingIRQ returns the interrupt lines that are both asserted and not
 	// masked by $1402, as IRQ2|IRQ1|IRQTimer bits.
 	PendingIRQ() uint8
+	// SetIRQSampler installs the CPU's per-cycle interrupt sample. The bus
+	// calls it on every CPU cycle after advancing the clock and before the
+	// access (spec C4): an interrupt raised by the clock tick of a cycle is
+	// seen in that cycle; one raised by the access itself is not.
+	SetIRQSampler(func())
 }
 
 // CPU is the register file plus the cycle counter. Zero value is not usable;
@@ -88,7 +93,9 @@ type CPU struct {
 
 // New wires a CPU to its bus. Registers are left for Reset.
 func New(bus Bus) *CPU {
-	return &CPU{bus: bus}
+	c := &CPU{bus: bus}
+	bus.SetIRQSampler(c.sampleIRQ)
+	return c
 }
 
 // Reset applies the power-on state of spec §1: I set, D and T clear, PC from
@@ -156,20 +163,17 @@ func (c *CPU) sampleIRQ() {
 // cycles. The opcode table's counts are the cross-check (opcodes_test.go).
 func (c *CPU) read(addr uint16) uint8 {
 	c.n++
-	c.sampleIRQ()
 	return c.bus.Read(addr)
 }
 
 func (c *CPU) write(addr uint16, v uint8) {
 	c.n++
-	c.sampleIRQ()
 	c.bus.Write(addr, v)
 }
 
 func (c *CPU) idle(k int) {
 	for i := 0; i < k; i++ {
 		c.n++
-		c.sampleIRQ()
 		c.bus.Idle()
 	}
 }
@@ -641,7 +645,7 @@ func (c *CPU) execute() int {
 		c.Y = c.setNZ(c.pop())
 	case "PLP":
 		c.idle(1)
-		c.P = c.pop()
+		c.P = c.pop() &^ FlagB // P never holds B; it only appears on the pushed copy
 
 	// Flags.
 	case "CLC":
@@ -692,7 +696,7 @@ func (c *CPU) execute() int {
 		c.idle(2)
 	case "RTI":
 		c.idle(1)
-		c.P = c.pop()
+		c.P = c.pop() &^ FlagB
 		c.PC = c.pop16()
 		c.idle(1)
 	case "BRK":

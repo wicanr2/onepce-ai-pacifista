@@ -53,9 +53,12 @@ func TestVRAMReadPrefetchesAndAdvancesOnlyWhenVRRSelected(t *testing.T) {
 	if got := d.readWord(); got != 0x2222 {
 		t.Fatalf("second read %04X (address must advance after the high byte)", got)
 	}
+	// MARR advances when a prefetch is served: once for the MARR write and
+	// once per high-byte read with VRR selected (spec §5.1 Q1), so two reads
+	// leave it at $0103. Reads with another register selected do not queue.
 	d.selectReg(0x05)
 	d.readWord()
-	if d.reg[1] != 0x0102 {
+	if d.reg[1] != 0x0103 {
 		t.Fatalf("MARR advanced while another register was selected: %04X", d.reg[1])
 	}
 }
@@ -139,12 +142,17 @@ func TestSATBTransferCopiesAtVBlank(t *testing.T) {
 	}
 	d.needVBlank = true
 	d.hdsIRQTrigger()
-	if d.sat[1] != 1 || d.sat[255] != 255 {
-		t.Fatalf("sat[1]=%d sat[255]=%d", d.sat[1], d.sat[255])
+	if !d.satbRunning || d.sat[255] != 0 {
+		t.Fatal("SATB must start at VBlank and copy word by word, not at once")
 	}
-	d.Advance(uint64(d.dots(4*satWords)) + 1)
+	// 256 words at 4 dots each, plus the 8-dot pause at each sync start.
+	d.Advance(uint64(d.dots(4*satWords + 16*8)))
+	if d.sat[1] != 1 || d.sat[255] != 255 {
+		tv := d.Transfers()
+		t.Fatalf("sat[1]=%d sat[255]=%d transfers %+v hclock %d scanline %d hmode %d allowDMA %v", d.sat[1], d.sat[255], tv, d.hclock, d.scanline, d.hMode, d.allowDMA)
+	}
 	if d.status&StatusSATBDone == 0 {
-		t.Fatal("SATB completion flag not set after 1024 VDC cycles")
+		t.Fatal("SATB completion flag not set after the transfer")
 	}
 }
 
@@ -157,5 +165,48 @@ func TestTilePixelDecodesPlanes(t *testing.T) {
 	}
 	if got := tilePixel(p01, p23, 7); got != 0x06 {
 		t.Fatalf("x7 = %X, want 6 (planes 1 and 2)", got)
+	}
+}
+
+// Spec §5.1: a VWR write waits in the queue (Q1/Q2), is served at the first
+// free slot after the delay (Q4/Q7), and a second access stalls the CPU
+// until then (Q8). Fresh VDC: VDS, scanline 0, hclock 0, divider 4.
+func TestVRAMWriteIsQueuedAndServedAtAFreeSlot(t *testing.T) {
+	d, _ := newVDC()
+	d.Stall = func() { d.Advance(3) }
+	d.set(0x00, 0x1234)
+	d.selectReg(0x02)
+	d.writeWord(0xBEEF)
+	if d.vram[0x1234] != 0 || !d.pendWrite || d.Read(0)&StatusBusy == 0 {
+		t.Fatalf("write must be queued: vram=%04X pending=%v", d.vram[0x1234], d.pendWrite)
+	}
+	// 21 master clocks of delay, then the first 8 dots of the line block:
+	// hclock 30 is still too early, hclock 33 (dot 8, even) serves it.
+	d.Advance(30)
+	if d.vram[0x1234] != 0 {
+		t.Fatalf("served too early at hclock %d", d.hclock)
+	}
+	d.Advance(6)
+	if d.vram[0x1234] != 0xBEEF || d.reg[0] != 0x1235 || d.pendWrite {
+		t.Fatalf("not served by hclock %d: vram=%04X mawr=%04X", d.hclock, d.vram[0x1234], d.reg[0])
+	}
+	// Two writes back to back: the second stalls until the first lands.
+	d.writeWord(0x1111)
+	d.writeWord(0x2222)
+	if d.vram[0x1235] != 0x1111 || d.reg[0] != 0x1236 || !d.pendWrite {
+		t.Fatalf("second write must stall for the first: vram[1235]=%04X mawr=%04X pending=%v", d.vram[0x1235], d.reg[0], d.pendWrite)
+	}
+	d.waitAccess()
+	if d.vram[0x1236] != 0x2222 || d.reg[0] != 0x1237 {
+		t.Fatalf("vram[1236]=%04X mawr=%04X", d.vram[0x1236], d.reg[0])
+	}
+	// Reads queue too, and reading the data port waits for the prefetch.
+	d.set(0x01, 0x1235)
+	if !d.pendRead {
+		t.Fatal("MARR write must queue a read")
+	}
+	d.selectReg(0x02)
+	if v := d.readWord(); v != 0x1111 {
+		t.Fatalf("read %04X", v)
 	}
 }

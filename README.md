@@ -10,8 +10,9 @@ PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wi
 
 ## MVP（M0–M4，2026-09-05）
 
-- **CPU**：HuC6280 全指令、逐存取計時、逐週期中斷取樣。Nectaris 開機 trace 前 160,000 條
-  與 Mesen2 逐指令相同（分歧原因與界限記在 `docs/spec/huc6280.md` §9）。
+- **CPU 與時序**：HuC6280 全指令、逐存取計時、逐週期中斷取樣；VDC 的 VRAM 存取排隊與 CPU
+  stall、逐 word 的 SATB／VRAM DMA。Nectaris 整條 P-100 路線 2,800 frame（7,200 萬條指令）
+  每千條指令的暫存器與主時脈都與 Mesen2 相同，逐指令相同的區段見 `docs/spec/huc6280.md` §9。
 - **VDC／VCE／匯流排／整機**：scanline 級 VDC，frame 內事件照實測時點排程。REVOLT 路線
   frame 2400／2600／3000 的 VRAM、SAT、色盤與 Mesen2 逐 word 相同（`docs/spec/machine.md`）。
 - **觀測**：區間 watch（read／write／exec，CPU 與 VRAM 空間，DMA 可見）、配額與略過計數、

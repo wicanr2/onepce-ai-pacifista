@@ -2,6 +2,7 @@ package onepce
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -36,7 +37,7 @@ func TestSaveStateRoundTripIsDeterministic(t *testing.T) {
 	if err := a.SaveState(&buf); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(buf.String(), `{"format":1,`) {
+	if !strings.HasPrefix(buf.String(), fmt.Sprintf(`{"format":%d,`, StateFormat)) {
 		t.Fatalf("header: %q", buf.String()[:40])
 	}
 
@@ -76,7 +77,7 @@ func TestLoadStateRejectsOtherROMsAndFormats(t *testing.T) {
 	if err := other.LoadState(bytes.NewReader(buf.Bytes())); err == nil {
 		t.Fatal("a savestate from another ROM must be refused")
 	}
-	bad := strings.Replace(buf.String(), `{"format":1,`, `{"format":2,`, 1)
+	bad := strings.Replace(buf.String(), fmt.Sprintf(`{"format":%d,`, StateFormat), fmt.Sprintf(`{"format":%d,`, StateFormat+1), 1)
 	if err := a.LoadState(strings.NewReader(bad)); err == nil {
 		t.Fatal("a different format version must be refused")
 	}

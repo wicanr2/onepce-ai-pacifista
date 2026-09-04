@@ -55,6 +55,8 @@ type Bus struct {
 	// Clock, when set, is called after every tick with the master clock so
 	// the video side can be kept in step with each CPU cycle.
 	Clock func(master uint64)
+	// sample is the CPU's per-cycle interrupt sample (huc6280.Bus.SetIRQSampler).
+	sample func()
 	// OnRead / OnWrite, when set, see every CPU-space access with its value
 	// (reads after the value is known). They are the observe layer's taps
 	// (docs/spec/observe.md O2) and must not touch the bus.
@@ -170,11 +172,24 @@ func (b *Bus) Peek(logical uint16) uint8 {
 	return 0xFF
 }
 
+// SetIRQSampler installs the CPU's interrupt sample (huc6280.Bus).
+func (b *Bus) SetIRQSampler(fn func()) { b.sample = fn }
+
+// cpuCycle is one CPU cycle: the clock moves, then the CPU samples its
+// interrupt lines, then (in the caller) the access happens. Oracle order:
+// Mesen2 PceCpu::ProcessCpuCycle @ b9fa69d (behaviour fact only).
+func (b *Bus) cpuCycle() {
+	b.Tick(1)
+	if b.sample != nil {
+		b.sample()
+	}
+}
+
 // Idle is one CPU cycle with no bus access.
-func (b *Bus) Idle() { b.Tick(1) }
+func (b *Bus) Idle() { b.cpuCycle() }
 
 func (b *Bus) Read(logical uint16) uint8 {
-	b.Tick(1)
+	b.cpuCycle()
 	v := b.readRaw(logical)
 	if b.OnRead != nil {
 		b.OnRead(logical, v)
@@ -197,7 +212,7 @@ func (b *Bus) readRaw(logical uint16) uint8 {
 }
 
 func (b *Bus) Write(logical uint16, value uint8) {
-	b.Tick(1)
+	b.cpuCycle()
 	if b.OnWrite != nil {
 		b.OnWrite(logical, value)
 	}
@@ -212,11 +227,11 @@ func (b *Bus) Write(logical uint16, value uint8) {
 }
 
 func (b *Bus) WriteVDCPort(port uint8, value uint8) {
-	b.Tick(1) // the write cycle itself
+	b.cpuCycle() // the write cycle itself
 	if b.dev.VDC != nil {
 		b.dev.VDC.Write(uint16(port), value)
 	}
-	b.Tick(1) // the VDC access stalls the CPU one more cycle (spec C10)
+	b.cpuCycle() // the VDC access stalls the CPU one more cycle (spec C10)
 }
 
 func (b *Bus) SetMPR(mask, value uint8) {
@@ -265,6 +280,19 @@ func (b *Bus) Tick(cycles int) {
 		steps = cycles * 4
 	}
 	if b.dev.Timer.tick(steps) {
+		b.irqLines |= irqTimer
+	}
+	if b.Clock != nil {
+		b.Clock(b.master)
+	}
+}
+
+// StallStep is one VDC tick (three master clocks) during which the CPU
+// waits on the VDC's VRAM access queue (docs/spec/vdc-vce.md §5.1): the
+// timer and the clock hook advance, the CPU does not.
+func (b *Bus) StallStep() {
+	b.master += 3
+	if b.dev.Timer.tick(1) {
 		b.irqLines |= irqTimer
 	}
 	if b.Clock != nil {
@@ -338,12 +366,12 @@ func (b *Bus) writeIO(off uint16, value uint8) {
 		if b.dev.VDC != nil {
 			b.dev.VDC.Write(off&0x03, value)
 		}
-		b.Tick(1)
+		b.cpuCycle() // extra cycle after a VDC/VCE write, sampled
 	case off < 0x0800:
 		if b.dev.VCE != nil {
 			b.dev.VCE.Write(off&0x07, value)
 		}
-		b.Tick(1)
+		b.cpuCycle()
 	case off < 0x0C00:
 		if b.dev.PSG != nil {
 			b.dev.PSG.Write(off&0x0F, value)
@@ -420,6 +448,22 @@ func (t *Timer) write(reg uint16, value uint8) {
 // read returns the counter; in the last five steps before an expiry the
 // register briefly reads $7F rather than the reload value (a quirk some
 // games depend on, reported by the oracle).
+// TimerView exposes the timer for snapshots and oracle tests.
+type TimerView struct {
+	Enabled         bool
+	Reload, Counter uint8
+	Scaler          int // 3-master-clock steps left before the counter moves
+}
+
+// TimerView returns the timer's registers and prescaler.
+func (b *Bus) TimerView() TimerView {
+	t := b.dev.Timer
+	return TimerView{Enabled: t.enabled, Reload: t.reload, Counter: t.counter, Scaler: t.scaler}
+}
+
+// IRQState returns the raw IRQ lines and the $1402 mask.
+func (b *Bus) IRQState() (lines, mask uint8) { return b.irqLines, b.irqMask }
+
 func (t *Timer) read() uint8 {
 	if t.counter == 0 && t.scaler <= 5 {
 		return 0x7F

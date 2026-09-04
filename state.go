@@ -11,7 +11,7 @@ import (
 )
 
 // StateFormat is the savestate container version (docs/spec/state.md S2).
-const StateFormat = 1
+const StateFormat = 2
 
 // stateHeader is the JSON line that starts a savestate (spec S1).
 type stateHeader struct {

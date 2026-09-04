@@ -12,14 +12,22 @@ type testBus struct {
 	fast    bool
 	ticks   int
 	pending uint8
+	sample  func()
 }
 
-func (b *testBus) Read(a uint16) uint8     { b.ticks++; return b.mem[a] }
-func (b *testBus) Write(a uint16, v uint8) { b.ticks++; b.mem[a] = v }
-func (b *testBus) Peek(a uint16) uint8     { return b.mem[a] }
-func (b *testBus) Idle()                   { b.ticks++ }
-func (b *testBus) WriteVDCPort(port, value uint8) {
+func (b *testBus) Read(a uint16) uint8     { b.cycle(); return b.mem[a] }
+func (b *testBus) Write(a uint16, v uint8) { b.cycle(); b.mem[a] = v }
+func (b *testBus) SetIRQSampler(fn func()) { b.sample = fn }
+func (b *testBus) cycle() {
 	b.ticks++
+	if b.sample != nil {
+		b.sample()
+	}
+}
+func (b *testBus) Peek(a uint16) uint8 { return b.mem[a] }
+func (b *testBus) Idle()               { b.cycle() }
+func (b *testBus) WriteVDCPort(port, value uint8) {
+	b.cycle()
 	b.vdc = append(b.vdc, struct{ port, value uint8 }{port, value})
 }
 func (b *testBus) SetMPR(mask, value uint8) {

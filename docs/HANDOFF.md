@@ -13,8 +13,8 @@
 - M0：gate、公開樹測試、位址模型。
 - M1：`docs/spec/huc6280.md`、`hucard-mapper.md` → `internal/huc6280`（256 opcode 表、
   逐存取計時、T flag、block transfer、TAM/TMA、逐週期中斷取樣）、`internal/bus`。
-  `tools/oracle/mesen2_trace_probe.lua` 錄 Nectaris 開機 200,000 條指令；前 160,000 條
-  （實際到 165,454）逐指令與 Mesen2 相同。分歧原因是 VRAM 存取 stall 未模擬造成 timer
+  `tools/oracle/mesen2_trace_probe.lua` 錄 Nectaris 開機 200,000 條指令；當時前 160,000 條
+  （實際到 165,454）逐指令與 Mesen2 相同（後來在 W6 補齊時序後全段相同）。當時的分歧原因是 VRAM 存取 stall 未模擬造成 timer
   相位差，記在 spec §9，測試以 `ONEPCE_TRACE_LIMIT` 為界。
 - M2：`docs/spec/vdc-vce.md`、`machine.md` → `internal/vdc`（scanline 級、frame 內事件照實測
   dot 位移、SATB／VRAM DMA、BG＋sprite 繪製）、`internal/vce`、`internal/machine`（逐週期
@@ -72,7 +72,26 @@
     nectaris-ebiten-test:20260816-v3 go test -count=1 -run TestFramebufferMatchesMesen2Picture -v .
   ```
 
-## 下一個最小動作（MVP 之後，各自先寫 spec）
+- W6 時序（2026-09-05 深夜）：`vdc-vce.md` §5／§5.1 → VRAM 存取排隊（延遲 21／18／12、24／24／15
+  主時脈，空槽規則 Q4–Q7）、CPU stall（`Bus.StallStep`）、逐 word SATB／VRAM DMA、水平相位
+  HSW→HDS→HDW→HDE→HSW 與同步起點；`huc6280.md` C4（每週期「推進→取樣→存取」）、C4a（P 不存 B）；
+  `machine.md` M3（按鍵在邊界週期內套用）。結果：開機 600,000 條與 frame 59–94 的 900,000 條
+  逐指令相同；整條 P-100 路線 72,178,865 條每千條取樣（暫存器、MPR、主時脈）全同；
+  work RAM 三個 frame 完全相同（不用忽略任何位元組）。savestate 格式升到 2。
+  追蹤方法：`mesen2_trace_probe.lua` 加 `TRACE_START`／`TRACE_START_FRAME`／`TRACE_END_FRAME`／
+  `TRACE_LINES=0`／`TRACE_PRESS`／`SAMPLE_KEYS`，samples 帶 `masterClock`；先用只取樣的長距離
+  fixture 找第一個漂移的千條區間，再對該區間錄逐條 trace 與 VDC 內部欄位逐指令比。
+  fixture（不進 git）：`dist-all/fixtures/trace/{drift,f60,long,win1,win2,win3}/current/`。
+  整條路線的對照命令：
+  ```bash
+  docker run --rm --network none -v "$PWD":/work -w /work -v /tmp/nec-rom:/rom:ro \
+    -u "$(id -u):$(id -g)" -e HOME=/tmp -e ONEPCE_ROM=/rom/rom.pce \
+    -e ONEPCE_FIXTURES=/work/dist-all/fixtures/trace/long/current -e ONEPCE_TRACE_LIMIT=200000000 \
+    -e ONEPCE_TRACE_PRESS="1680:run:15,…,2740:i:8" \
+    nectaris-ebiten-test:20260816-v3 go test -count=1 -run BootTrace -v ./internal/machine/
+  ```
 
-1. VRAM 存取 stall 與 VDC 忙碌旗標（`vdc-vce.md` §8 第一列），目標是 trace 對照穿過 timer 相位。
-2. M5 PSG、M6 對拍 GUI（`docs/PLAN.md` §八）。
+## 下一個最小動作（各自先寫 spec）
+
+1. M5 PSG（`docs/PLAN.md` §八）：`docs/spec/psg.md` → `internal/psg`、VGM 記錄、WAV 渲染。
+2. M6 對拍 GUI。

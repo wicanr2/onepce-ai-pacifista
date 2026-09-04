@@ -93,7 +93,8 @@ func (m *Machine) Schedule(presses ...Press) {
 	m.plan = append(m.plan, presses...)
 }
 
-// applyPlan runs at every frame boundary (VDC frame counter just advanced).
+// applyPlan runs at every frame boundary (VDC frame counter just advanced),
+// from the clock hook (spec machine.md M3).
 func (m *Machine) applyPlan() {
 	frame := m.VDC.Frame()
 	for _, p := range m.plan {
@@ -132,10 +133,18 @@ func New(rom []byte) (*Machine, error) {
 		before := m.VDC.Frame()
 		m.VDC.Advance(master - m.lastMaster)
 		m.lastMaster = master
-		if m.FrameHook != nil && m.VDC.Frame() != before {
-			m.FrameHook(m.VDC.Frame())
+		if m.VDC.Frame() != before {
+			// Input changes land at the frame boundary itself, inside the
+			// CPU cycle that crosses scanline 256 (Mesen2 polls input in
+			// SendFrame), so Step-driven runs see them at the same
+			// instruction as RunFrame-driven ones.
+			m.applyPlan()
+			if m.FrameHook != nil {
+				m.FrameHook(m.VDC.Frame())
+			}
 		}
 	}
+	m.VDC.Stall = b.StallStep
 	m.CPU = huc6280.New(b)
 	m.CPU.Reset()
 	return m, nil
@@ -155,7 +164,6 @@ func (m *Machine) RunFrame() {
 	for !m.VDC.TakeFrameReady() {
 		m.Step()
 	}
-	m.applyPlan()
 }
 
 // RunToFrame runs until the VDC frame counter reaches frame.

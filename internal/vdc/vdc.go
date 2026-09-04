@@ -43,6 +43,14 @@ const (
 	modeVDE
 )
 
+// Horizontal phases (spec §4).
+const (
+	hSW = iota
+	hDS
+	hDW
+	hDE
+)
+
 // Registers is the snapshot view of the 16-bit register file.
 type Registers struct {
 	Raw      [0x20]uint16
@@ -124,6 +132,26 @@ type VDC struct {
 	tLatchY, tLatchX, tIRQ, tRCR, tHDW                int
 	doneLatchY, doneLatchX, doneIRQ, doneRCR, doneHDW bool
 
+	// Horizontal phase sequence (spec §4): HSW → HDS → HDW → HDE → HSW…,
+	// cut short by the 1365-clock line. hsyncStart is the master clock at
+	// which the current HSW began; the 8-dot VRAM block counts from there.
+	hMode      int
+	hModeEnd   int // hclock at which the phase ends
+	hsyncStart uint64
+
+	// VRAM access queue (spec §5.1): one CPU read or write waits here until
+	// the VDC has a free VRAM slot; the CPU stalls if it touches the queue
+	// again before then.
+	pendRead, pendWrite bool
+	pendDelay           int    // master clocks before the access may be served
+	vwrData             uint16 // word queued by a VWR write
+	bgStart, bgEnd      int    // background fetch window of this line (hclock); bgStart<0 = none
+	evalStart           int    // sprite evaluation start on this line (hclock); <0 = none
+	sprPrev, sprNext    int    // sprite cells fetched for this row / for the next row
+	// Stall, when set, advances the whole machine three master clocks; the
+	// VDC calls it while the CPU waits on the queue.
+	Stall func()
+
 	// Where the last framebuffer sits in the oracle's picture coordinates
 	// (docs/spec/framebuffer-parity.md §3): first display dot of the line
 	// and the scanline of VDW raster 0.
@@ -140,12 +168,16 @@ type VDC struct {
 	nextSpr bool
 	burst   bool
 
-	satbPending bool
-	satbRunning bool
-	satbDoneAt  uint64
-	dmaPending  bool
-	dmaRunning  bool
-	dmaDoneAt   uint64
+	// Transfers run word by word on VDC ticks (spec §5): SATB first, then
+	// the VRAM→VRAM DMA, both only while DMA is allowed.
+	satbPending  bool
+	satbRunning  bool
+	satbOffset   int // next SAT word
+	satbCounter  int // master clocks accumulated towards the next word
+	dmaRunning   bool
+	dmaCounter   int
+	dmaReadCycle bool
+	dmaBuffer    uint16
 
 	fbW, fbH int
 	fb       []uint16
@@ -167,6 +199,7 @@ func New(v *vce.VCE, irq IRQLine) *VDC {
 	d.lat.vdw = 239
 	d.vmode = modeVDS
 	d.vcounter = 0
+	d.bgStart, d.bgEnd, d.evalStart = -1, clocksPerLine, -1
 	d.startLine()
 	return d
 }
@@ -204,6 +237,41 @@ func (d *VDC) TakeFrameReady() bool {
 // colour per pixel, top-left first. Only the display window is included.
 func (d *VDC) Framebuffer() (int, int, []uint16) { return d.fbW, d.fbH, d.fb }
 
+// TransferView is the state of the transfers and the access queue, for
+// oracle comparisons and the GUI.
+type TransferView struct {
+	SATBRunning, SATBPending bool
+	SATBOffset, SATBCounter  int
+	DMARunning               bool
+	DMALen                   uint16
+	PendRead, PendWrite      bool
+	PendDelay                int
+}
+
+// PhaseView is the horizontal phase and fetch-window state of the current
+// line, for oracle comparisons.
+type PhaseView struct {
+	HMode, HModeEnd  int
+	EvalStart        int
+	HSyncStart       uint64
+	BGStart, BGEnd   int
+	SprPrev, SprNext int
+	SpritesOn, Burst bool
+}
+
+// Phase returns the current line's phase/fetch state.
+func (d *VDC) Phase() PhaseView {
+	return PhaseView{HMode: d.hMode, HModeEnd: d.hModeEnd, HSyncStart: d.hsyncStart, BGStart: d.bgStart, BGEnd: d.bgEnd, EvalStart: d.evalStart,
+		SprPrev: d.sprPrev, SprNext: d.sprNext, SpritesOn: d.spr, Burst: d.burst}
+}
+
+// Transfers returns the transfer/queue state.
+func (d *VDC) Transfers() TransferView {
+	return TransferView{SATBRunning: d.satbRunning, SATBPending: d.satbPending, SATBOffset: d.satbOffset,
+		SATBCounter: d.satbCounter, DMARunning: d.dmaRunning, DMALen: d.reg[0x12],
+		PendRead: d.pendRead, PendWrite: d.pendWrite, PendDelay: d.pendDelay}
+}
+
 // DisplayWindow reports where the framebuffer's (0,0) sits in the line/dot
 // coordinates the oracle uses: the display-start dot (hclock ÷ VCE divider)
 // and the scanline of VDW raster 0 (docs/spec/framebuffer-parity.md §3).
@@ -215,16 +283,24 @@ func (d *VDC) Read(port uint16) uint8 {
 	switch port & 0x03 {
 	case 0:
 		s := d.status
+		if d.pendRead || d.pendWrite {
+			s |= StatusBusy
+		}
 		d.status &^= statusIRQMask
 		d.irq.Clear()
 		return s
 	case 2:
+		if d.pendRead {
+			d.waitAccess()
+		}
 		return uint8(d.readBuf)
 	case 3:
+		if d.pendRead {
+			d.waitAccess()
+		}
 		v := uint8(d.readBuf >> 8)
 		if d.cur == 0x02 {
-			d.reg[1] += d.inc
-			d.readBuf = d.readVRAM(d.reg[1])
+			d.queueRead()
 		}
 		return v
 	}
@@ -254,19 +330,38 @@ func (d *VDC) writeReg(msb bool, value uint8) {
 	r := d.cur
 	switch r {
 	case 0x00:
+		d.waitAccess()
 		d.setReg(r, msb, value, 0xFFFF)
 	case 0x01:
+		d.waitAccess()
 		d.setReg(r, msb, value, 0xFFFF)
 		if msb {
-			d.readBuf = d.readVRAM(d.reg[1])
+			d.queueRead()
 		}
 	case 0x02:
+		d.waitAccess()
 		if !msb {
 			d.vwrLow = value
 			return
 		}
-		d.writeVRAM(d.reg[0], uint16(value)<<8|uint16(d.vwrLow))
-		d.reg[0] += d.inc
+		d.vwrData = uint16(value)<<8 | uint16(d.vwrLow)
+		d.pendWrite = true
+		switch d.div() {
+		case 2:
+			d.pendDelay = 12
+		case 3:
+			d.pendDelay = 18
+		default:
+			d.pendDelay = 21
+		}
+		// Observers see the write as the CPU's, at the instruction that
+		// issued it (spec §5.1); the VRAM word itself lands when served.
+		if d.reg[0] < vramWords && d.OnVRAMWrite != nil {
+			d.OnVRAMWrite(d.reg[0], d.vwrData, ByCPU)
+		}
+		if d.Stall == nil {
+			d.serveAccess()
+		}
 	case 0x05:
 		d.setReg(r, msb, value, 0xFFFF)
 		if msb {
@@ -328,6 +423,155 @@ func (d *VDC) writeVRAMFrom(addr, value uint16, src Source) {
 			d.OnVRAMWrite(addr, value, src)
 		}
 	}
+}
+
+// --- VRAM access queue (spec §5.1) ---
+
+func (d *VDC) queueRead() {
+	d.pendRead = true
+	switch d.div() {
+	case 2:
+		d.pendDelay = 15
+	default:
+		d.pendDelay = 24
+	}
+	if d.Stall == nil {
+		// No machine around us (unit tests): serve at once.
+		d.serveAccess()
+	}
+}
+
+// waitAccess stalls the CPU until the queued access has been served.
+func (d *VDC) waitAccess() {
+	for d.pendRead || d.pendWrite {
+		if d.Stall == nil {
+			d.serveAccess()
+			return
+		}
+		d.Stall()
+	}
+}
+
+// serveAccess performs the queued access now.
+func (d *VDC) serveAccess() {
+	if d.pendRead {
+		d.readBuf = d.readVRAM(d.reg[1])
+		d.reg[1] += d.inc
+		d.pendRead = false
+	} else if d.pendWrite {
+		if d.reg[0] < vramWords {
+			d.vram[d.reg[0]] = d.vwrData
+		}
+		d.reg[0] += d.inc
+		d.pendWrite = false
+	}
+	d.pendDelay = 0
+}
+
+// processAccess is one VDC tick (three master clocks) of the queue: count
+// the delay down, then serve the access at the first free VRAM slot.
+func (d *VDC) processAccess() {
+	if !d.pendRead && !d.pendWrite {
+		return
+	}
+	if d.pendDelay > 0 {
+		d.pendDelay -= 3
+		if d.pendDelay > 0 {
+			return
+		}
+	}
+	d.pendDelay = 0
+	if d.accessBlocked() {
+		return
+	}
+	if d.inHSyncBlock(false) {
+		return
+	}
+	d.serveAccess()
+}
+
+// accessBlocked reports whether the VDC is using VRAM itself at this hclock
+// (spec §5.1 rule table).
+func (d *VDC) accessBlocked() bool {
+	div := d.div()
+	dotOdd := (d.hclock/div)&1 == 1
+	inBg := !d.burst && d.bgStart >= 0 && d.hclock >= d.bgStart && d.hclock < d.bgEnd &&
+		d.scanline >= 14 && d.scanline < frameLine
+	// Before this line's sprite evaluation the count still belongs to the
+	// row being drawn; from the evaluation on it is the next row's.
+	cells := d.sprNext
+	if d.evalStart < 0 || d.hclock < d.evalStart {
+		cells = d.sprPrev
+	}
+	if d.vmode != modeVDW || d.burst || ((!d.spr || cells == 0) && !inBg) {
+		// Blanking, forced blank, or a row with nothing to fetch: one free
+		// slot every other dot, none while a DMA runs.
+		return d.satbRunning || d.dmaRunning || dotOdd
+	}
+	if inBg {
+		k := (d.hclock-d.bgStart)/div - 1
+		if k < 0 {
+			return true
+		}
+		switch d.lat.vramMode {
+		case 0:
+			return k&1 == 1
+		case 3:
+			return true
+		default:
+			return k&7 != 2 && k&7 != 3
+		}
+	}
+	// Sprite pattern fetch for the next row starts when the background
+	// fetch ends and takes 4/4/8/16 dots per cell by sprite access mode.
+	clocks := d.hclock - d.bgEnd
+	if d.hclock <= d.bgEnd {
+		clocks = clocksPerLine - d.bgEnd + d.hclock
+	}
+	per := 4
+	switch d.lat.spriteMode {
+	case 2:
+		per = 8
+	case 3:
+		per = 16
+	}
+	if clocks/div < cells*per {
+		return true
+	}
+	return dotOdd
+}
+
+// spriteCellCount is the number of 16-pixel sprite cells the VDC fetches
+// for a row, capped at the per-line limit (same walk as evalSprites).
+func (d *VDC) spriteCellCount(row int) int {
+	cells := 0
+	for i := 0; i < 64; i++ {
+		y := int(d.sat[i*4]&0x3FF) - 64
+		if row < y {
+			continue
+		}
+		height := 16
+		switch (d.sat[i*4+3] >> 12) & 0x03 {
+		case 1:
+			height = 32
+		case 2, 3:
+			height = 64
+		}
+		if row >= y+height {
+			continue
+		}
+		width := 1
+		if d.sat[i*4+3]&0x100 != 0 {
+			width = 2
+		}
+		for x := 0; x < width; x++ {
+			if cells >= maxLineCells {
+				return cells
+			}
+			cells++
+		}
+	}
+	return cells
 }
 
 // --- register accessors ---
@@ -420,10 +664,6 @@ func (d *VDC) triggerVBlank() {
 		d.satbPending = false
 		d.startSATB()
 	}
-	if d.dmaPending {
-		d.dmaPending = false
-		d.startVRAMDMA()
-	}
 }
 
 func (d *VDC) hdsIRQTrigger() {
@@ -461,6 +701,13 @@ func (d *VDC) startLine() {
 	if d.div() == 3 {
 		hswEnd = d.dots(32)
 	}
+	// The line restart forces HSW; if the VDC was already in HSW (HDE ended
+	// early) the sync start is not refreshed (Mesen2 ProcessEndOfScanline).
+	if d.hMode != hSW {
+		d.hMode = hSW
+		d.hsyncStart = d.master
+	}
+	d.hModeEnd = hswEnd
 	displayStart := hswEnd + d.dots((int(d.lat.hds)+1)*8)
 	d.tHDW = displayStart
 	d.tRCR = displayStart + d.dots((int(d.lat.hdw)-1)*8+2)
@@ -473,6 +720,26 @@ func (d *VDC) startLine() {
 		d.tLatchY, d.tLatchX = -1, -1
 		d.tIRQ = displayStart - d.dots(25)
 	}
+	// Background fetch window and sprite cell counts for the access queue
+	// (spec §5.1): fetching starts 16 dots before the display and runs 16
+	// dots past it; the next row's sprites are evaluated on this line.
+	d.sprPrev = d.sprNext
+	d.bgStart, d.evalStart = -1, -1
+	if displayStart-d.dots(24) < clocksPerLine && (d.vmode == modeVDW || lastLine) {
+		// The row evaluated is the next one, wrapping on the last line of
+		// the frame (Mesen2: spriteRow = (RcrCounter + 1) % scanlineCount).
+		d.evalStart = displayStart - d.dots(16)
+		d.sprNext = d.spriteCellCount((d.rcr + 1) % d.lines())
+		if d.vmode == modeVDW {
+			d.bgStart = displayStart - d.dots(16)
+			d.bgEnd = d.bgStart + d.dots((int(d.lat.hdw)+1)*8+16)
+			if d.bgEnd > clocksPerLine {
+				d.bgEnd = clocksPerLine
+			}
+		}
+	} else {
+		d.sprNext = 0
+	}
 	if displayStart-d.dots(24) >= clocksPerLine {
 		// Display would start past the end of the line: nothing fires.
 		d.tLatchY, d.tLatchX, d.tIRQ, d.tHDW = -1, -1, -1, -1
@@ -481,8 +748,47 @@ func (d *VDC) startLine() {
 	d.runEvents()
 }
 
+// stepHMode advances the horizontal phase when its end has been reached.
+func (d *VDC) stepHMode() {
+	for d.hclock >= d.hModeEnd && d.hModeEnd < clocksPerLine {
+		switch d.hMode {
+		case hSW:
+			d.hMode = hDS
+			d.hModeEnd += d.dots((int(d.lat.hds) + 1) * 8)
+		case hDS:
+			d.hMode = hDW
+			d.hModeEnd += d.dots((int(d.lat.hdw) + 1) * 8)
+		case hDW:
+			d.hMode = hDE
+			d.hModeEnd += d.dots((int(d.lat.hde) + 1) * 8)
+		default:
+			d.hMode = hSW
+			// The oracle stamps the sync start with its tick clock, which is
+			// the phase end rounded up to the next multiple of three.
+			lineStart := d.master - uint64(d.hclock)
+			d.hsyncStart = lineStart + uint64((d.hModeEnd+2)/3*3)
+			d.hModeEnd += d.dots((int(d.lat.hsw) + 1) * 8)
+		}
+	}
+}
+
+// inHSyncBlock reports whether a VRAM slot is blocked by the first 8 dots
+// of horizontal sync; the oracle measures "tick clock − sync start", which
+// is our master + 3, with < for the access queue and <= for transfers.
+func (d *VDC) inHSyncBlock(transfer bool) bool {
+	if d.hMode != hSW {
+		return false
+	}
+	since := int(d.master + 3 - d.hsyncStart)
+	if transfer {
+		return since <= d.dots(8)
+	}
+	return since < d.dots(8)
+}
+
 // runEvents fires every scheduled event whose time has been reached.
 func (d *VDC) runEvents() {
+	d.stepHMode()
 	if !d.doneLatchY && d.tLatchY >= 0 && d.hclock >= d.tLatchY {
 		d.doneLatchY = true
 		d.latchScrollY()
@@ -524,6 +830,9 @@ func (d *VDC) nextEventClock() int {
 	consider(d.doneIRQ, d.tIRQ)
 	consider(d.doneHDW, d.tHDW)
 	consider(d.doneRCR, d.tRCR)
+	if d.hModeEnd > d.hclock && d.hModeEnd < next {
+		next = d.hModeEnd
+	}
 	return next
 }
 
@@ -557,10 +866,22 @@ func (d *VDC) endLine() {
 func (d *VDC) Advance(n uint64) {
 	target := d.master + n
 	for d.master < target {
-		d.finishTransfers()
 		step := int(target - d.master)
 		if limit := d.nextEventClock() - d.hclock; limit < step {
 			step = limit
+		}
+		if d.satbRunning || d.dmaRunning || d.pendRead || d.pendWrite {
+			// Transfers and the access queue move on VDC ticks of three
+			// master clocks, in that order (Mesen2 PceVdc::Exec).
+			if phase := int(d.master % 3); phase == 0 {
+				d.transferTick()
+				d.processAccess()
+				if step > 3 {
+					step = 3
+				}
+			} else if step > 3-phase {
+				step = 3 - phase
+			}
 		}
 		d.hclock += step
 		d.master += uint64(step)
@@ -569,63 +890,90 @@ func (d *VDC) Advance(n uint64) {
 			d.endLine()
 		}
 	}
-	d.finishTransfers()
 }
 
 // --- DMA (spec §5) ---
 
 func (d *VDC) startSATB() {
-	src := d.reg[0x13]
-	for i := 0; i < satWords; i++ {
-		d.sat[i] = d.readVRAM(src + uint16(i))
-		if d.OnVRAMWrite != nil {
-			d.OnVRAMWrite(uint16(i), d.sat[i], BySATB)
-		}
-	}
 	d.satbRunning = true
-	d.satbDoneAt = d.master + uint64(d.dots(4*satWords))
+	d.satbOffset, d.satbCounter = 0, 0
 }
 
+// startVRAMDMA arms the VRAM→VRAM transfer; it moves only while DMA is
+// allowed (blanking or forced blank) and after any SATB transfer.
 func (d *VDC) startVRAMDMA() {
-	if !d.allowDMA && !d.burst {
-		d.dmaPending = true
+	d.dmaRunning = true
+	d.dmaReadCycle = true
+	d.dmaCounter = 0
+}
+
+// dmaAllowed: no transfers during the picture, nor in the first 8 dots of
+// horizontal sync (Mesen2 PceVdc::IsDmaAllowed).
+func (d *VDC) dmaAllowed() bool {
+	return (d.allowDMA || d.burst) && !d.inHSyncBlock(true)
+}
+
+// transferTick is one VDC tick of the running transfer: one SAT word per
+// 4 dots, or one VRAM DMA read/write per 2 dots.
+func (d *VDC) transferTick() {
+	if !d.dmaAllowed() {
 		return
 	}
-	src, dst := d.reg[0x10], d.reg[0x11]
-	n := int(d.reg[0x12]) + 1
-	for i := 0; i < n; i++ {
-		d.writeVRAMFrom(dst, d.readVRAM(src), ByDMA)
-		if d.dcr()&0x04 != 0 {
-			src--
-		} else {
-			src++
+	div := d.div()
+	if d.satbRunning {
+		d.satbCounter += 3
+		if d.satbCounter/div >= 4 {
+			d.satbCounter -= 4 * div
+			i := d.satbOffset
+			d.sat[i] = d.readVRAM(d.reg[0x13] + uint16(i))
+			if d.OnVRAMWrite != nil {
+				d.OnVRAMWrite(uint16(i), d.sat[i], BySATB)
+			}
+			d.satbOffset++
+			if d.satbOffset == satWords {
+				d.satbRunning = false
+				if d.dcr()&0x01 != 0 {
+					d.status |= StatusSATBDone
+					d.irq.Assert()
+				}
+			}
 		}
-		if d.dcr()&0x08 != 0 {
-			dst--
-		} else {
-			dst++
-		}
+		return
 	}
-	d.reg[0x10], d.reg[0x11] = src, dst
-	d.reg[0x12] = 0xFFFF
-	d.dmaRunning = true
-	d.dmaDoneAt = d.master + uint64(d.dots(4*n))
-}
-
-func (d *VDC) finishTransfers() {
-	if d.satbRunning && d.master >= d.satbDoneAt {
-		d.satbRunning = false
-		if d.dcr()&0x01 != 0 {
-			d.status |= StatusSATBDone
-			d.irq.Assert()
-		}
+	if !d.dmaRunning {
+		return
 	}
-	if d.dmaRunning && d.master >= d.dmaDoneAt {
-		d.dmaRunning = false
-		if d.dcr()&0x02 != 0 {
-			d.status |= StatusVRAMDMADone
-			d.irq.Assert()
+	d.dmaCounter += 3
+	per := div * 2
+	for d.dmaCounter >= per {
+		if d.dmaReadCycle {
+			d.dmaBuffer = d.readVRAM(d.reg[0x10])
+			d.dmaReadCycle = false
+		} else {
+			d.reg[0x12]--
+			d.writeVRAMFrom(d.reg[0x11], d.dmaBuffer, ByDMA)
+			if d.dcr()&0x04 != 0 {
+				d.reg[0x10]--
+			} else {
+				d.reg[0x10]++
+			}
+			if d.dcr()&0x08 != 0 {
+				d.reg[0x11]--
+			} else {
+				d.reg[0x11]++
+			}
+			d.dmaReadCycle = true
+			if d.reg[0x12] == 0xFFFF {
+				d.dmaRunning = false
+				d.dmaCounter = 0
+				if d.dcr()&0x02 != 0 {
+					d.status |= StatusVRAMDMADone
+					d.irq.Assert()
+				}
+				break
+			}
 		}
+		d.dmaCounter -= per
 	}
 }
 

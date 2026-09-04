@@ -78,20 +78,17 @@ func TestMachineStateMatchesMesen2Dumps(t *testing.T) {
 		t.Logf("frame %d: oracle pc=$%04X mpr=%s | ours pc=$%04X (at boundary $%04X) mpr=%v", frame,
 			int(st["cpu.pc"]), mprText(st), m.CPU.PC, pcAtFrame, m.Bus.MPR())
 
-		// The stack page ($2100–$21FF) holds return addresses of interrupts
-		// that land on different instructions whenever cycle counts differ
-		// (VRAM stalls, spec vdc-vce.md §8), so it is compared separately and
-		// only reported. Bytes listed in ONEPCE_STATE_IGNORE (hex offsets into
-		// work RAM, comma separated) are known timing counters of this ROM.
+		// Every byte is compared, stack page included: with the VDC access
+		// queue and DMA timing in place (spec vdc-vce.md §5.1) interrupts land
+		// on the same instructions as in the oracle. ONEPCE_STATE_IGNORE (hex
+		// offsets into work RAM, comma separated) is kept for other ROMs whose
+		// timing counters are not yet accounted for; ignored bytes are reported.
 		ram := readBin(t, filepath.Join(fixtures, fmt.Sprintf("ram-%d.bin", frame)))
 		ignore := map[int]bool{}
 		for _, h := range strings.Split(os.Getenv("ONEPCE_STATE_IGNORE"), ",") {
 			if v, err := strconv.ParseInt(strings.TrimSpace(h), 16, 32); err == nil {
 				ignore[int(v)] = true
 			}
-		}
-		for i := 0x100; i < 0x200; i++ {
-			ignore[i] = true
 		}
 		compareBytesIgnoring(t, frame, "work RAM", ramAtFrame[:], ram, ignore)
 
@@ -214,7 +211,7 @@ func compareBytesIgnoring(t *testing.T, frame int, what string, got, want []byte
 		t.Errorf("frame %d %s: %d/%d bytes differ outside the ignored set (%d ignored); %s",
 			frame, what, diffs, len(got), ignored, strings.Join(where, " "))
 	} else {
-		t.Logf("frame %d %s: identical outside the ignored set (%d ignored bytes differ: stack page / timing counters)", frame, what, ignored)
+		t.Logf("frame %d %s: identical (%d bytes in the ignore set differ)", frame, what, ignored)
 	}
 }
 
