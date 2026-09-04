@@ -3,6 +3,7 @@ package machine
 import (
 	"github.com/wicanr2/onepce-ai-remake/internal/bus"
 	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-remake/internal/psg"
 	"github.com/wicanr2/onepce-ai-remake/internal/vce"
 	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
 )
@@ -20,6 +21,7 @@ type State struct {
 	Bus        bus.State
 	VDC        vdc.State
 	VCE        vce.State
+	PSG        psg.Saved
 	Pad        PadState
 	LastMaster uint64
 	Plan       []Press
@@ -29,7 +31,7 @@ type State struct {
 // Save copies every component out.
 func (m *Machine) Save() State {
 	return State{
-		CPU: m.CPU.Save(), Bus: m.Bus.Save(), VDC: m.VDC.Save(), VCE: m.VCE.Save(),
+		CPU: m.CPU.Save(), Bus: m.Bus.Save(), VDC: m.VDC.Save(), VCE: m.VCE.Save(), PSG: m.PSG.Save(),
 		Pad:        PadState{Held: m.Pad.Held, Sel: m.Pad.sel, Clr: m.Pad.clr},
 		LastMaster: m.lastMaster,
 		Plan:       append([]Press(nil), m.plan...),
@@ -43,6 +45,7 @@ func (m *Machine) Restore(s State) {
 	m.Bus.Restore(s.Bus)
 	m.VDC.Restore(s.VDC)
 	m.VCE.Restore(s.VCE)
+	m.PSG.Load(s.PSG)
 	m.Pad.Held, m.Pad.sel, m.Pad.clr = s.Pad.Held, s.Pad.Sel, s.Pad.Clr
 	m.lastMaster = s.LastMaster
 	m.plan = append([]Press(nil), s.Plan...)

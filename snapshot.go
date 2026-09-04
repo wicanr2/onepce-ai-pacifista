@@ -1,11 +1,14 @@
 package onepce
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/hex"
 
 	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-remake/internal/psg"
 	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
 )
 
@@ -19,10 +22,11 @@ const (
 	SectionVCE     Section = "VCE"
 	SectionVDCRegs Section = "VDCRegs"
 	SectionCPU     Section = "CPU"
+	SectionPSG     Section = "PSG"
 )
 
 // AllSections is every section, in a fixed order.
-var AllSections = []Section{SectionRAM, SectionVRAM, SectionSAT, SectionVCE, SectionVDCRegs, SectionCPU}
+var AllSections = []Section{SectionRAM, SectionVRAM, SectionSAT, SectionVCE, SectionVDCRegs, SectionCPU, SectionPSG}
 
 // Snapshot is a labelled copy of machine state with provenance.
 type Snapshot struct {
@@ -38,6 +42,7 @@ type Snapshot struct {
 	SAT     []uint16 // 256 words
 	VCE     []uint16 // 512 palette entries
 	VDCRegs vdc.Registers
+	PSG     psg.State
 
 	// Hashes holds the SHA-256 of every section that was captured, keyed by
 	// section name, so two snapshots can be compared without the payload.
@@ -68,6 +73,11 @@ func (pm *Machine) Snapshot(sections ...Section) *Snapshot {
 		case SectionVDCRegs:
 			s.VDCRegs = pm.m.VDC.Registers()
 			s.Hashes[sec] = hashWords(s.VDCRegs.Raw[:])
+		case SectionPSG:
+			s.PSG = pm.m.PSG.State
+			var buf bytes.Buffer
+			_ = gob.NewEncoder(&buf).Encode(s.PSG)
+			s.Hashes[sec] = hashBytes(buf.Bytes())
 		case SectionCPU:
 			s.CPU = pm.m.CPU.Peek()
 			s.MPR = pm.m.Bus.MPR()

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-remake/internal/psg"
 	"github.com/wicanr2/onepce-ai-remake/internal/rpc"
 )
 
@@ -44,7 +45,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   onepce run -rom X [-press "f:btn:span,…"] [-to-frame N] [-load in.state] [-save out.state]
              [-screenshot out.png] [-snapshot-dir DIR] [-watch "kind:space:lo-hi[:limit]"]…
-             [-ignore-pc "a,b,…"] [-trace-hash]
+             [-ignore-pc "a,b,…"] [-trace-hash] [-wav out.wav] [-audio-rate 44100]
+             [-vgm start-stop -vgm-out out.vgm]
   onepce rpc -rom X
   onepce version`)
 }
@@ -76,6 +78,10 @@ func runCommand(args []string) error {
 	snapDir := fs.String("snapshot-dir", "", "directory for snapshot.json + section bins")
 	ignore := fs.String("ignore-pc", "", "instruction-start PCs to ignore in watches (hex, comma separated)")
 	traceHash := fs.Bool("trace-hash", false, "print the PC+opcode structure hash of the run")
+	wavPath := fs.String("wav", "", "render the PSG output of the run to this WAV file")
+	audioRate := fs.Int("audio-rate", 44100, "sample rate for -wav")
+	vgmWindow := fs.String("vgm", "", "record PSG port writes while the start-of-frame counter is in start-stop")
+	vgmPath := fs.String("vgm-out", "", "VGM file for -vgm")
 	var watches watchFlags
 	fs.Var(&watches, "watch", "kind:space:lo-hi[:limit] (repeatable)")
 	if err := fs.Parse(args); err != nil {
@@ -148,6 +154,19 @@ func runCommand(args []string) error {
 	if *traceHash {
 		th = m.NewTraceHash()
 	}
+	if *wavPath != "" {
+		m.SetAudioRate(*audioRate)
+	}
+	if *vgmWindow != "" {
+		var start, stop uint64
+		if _, err := fmt.Sscanf(*vgmWindow, "%d-%d", &start, &stop); err != nil || stop <= start {
+			return fmt.Errorf("-vgm %q: want start-stop frames", *vgmWindow)
+		}
+		if *vgmPath == "" {
+			return fmt.Errorf("-vgm needs -vgm-out")
+		}
+		m.RecordVGM(start, stop)
+	}
 	if *toFrame > 0 {
 		m.RunToFrame(*toFrame)
 	}
@@ -176,6 +195,26 @@ func runCommand(args []string) error {
 		if err := writeSnapshot(m, *snapDir); err != nil {
 			return err
 		}
+	}
+	if *wavPath != "" {
+		samples := m.DrainAudio()
+		f, err := os.Create(*wavPath)
+		if err != nil {
+			return err
+		}
+		err = psg.WriteWAV(f, *audioRate, samples)
+		f.Close()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "wav %s: %d stereo samples at %d Hz\n", *wavPath, len(samples)/2, *audioRate)
+	}
+	if *vgmPath != "" {
+		data, done := m.VGM()
+		if err := os.WriteFile(*vgmPath, data, 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "vgm %s: %d bytes, window closed=%v\n", *vgmPath, len(data), done)
 	}
 	if *savePath != "" {
 		f, err := os.Create(*savePath)

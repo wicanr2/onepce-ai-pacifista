@@ -100,6 +100,11 @@ type VDC struct {
 	vce *vce.VCE
 	irq IRQLine
 
+	// OnStartFrame, when set, fires when the scanline counter wraps to 0 —
+	// the oracle's "start of frame" event (spec psg.md §3 uses it as the
+	// VGM beat; it is not the frame counter's scanline-256 boundary).
+	OnStartFrame func()
+
 	// OnVRAMWrite, when set, sees every VRAM word write with its source;
 	// SATB transfers report the SAT index instead of a VRAM address.
 	OnVRAMWrite func(addr uint16, value uint16, src Source)
@@ -853,6 +858,9 @@ func (d *VDC) endLine() {
 	if !d.doneRCR {
 		d.doneRCR = true
 		d.incrementRCR()
+	}
+	if d.scanline == 0 && d.OnStartFrame != nil {
+		d.OnStartFrame()
 	}
 	if d.scanline == d.lines()-3 {
 		d.setVMode(modeVSW)

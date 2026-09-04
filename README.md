@@ -20,6 +20,8 @@ PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wi
 - **介面**：Go library（根套件 `onepce`）、`cmd/onepce`（`run`／`rpc`）、JSON-RPC over stdio。
 - **畫面**：REVOLT 戰術畫面（含移動範圍）frame 2450／2600／2800 與 Mesen2 逐像素相同
   （`docs/spec/framebuffer-parity.md`）。
+- **PSG**：六聲道波表／DDA／雜訊／LFO，VGM 記錄與 WAV 渲染；PSG 狀態 287 個欄位、VGM
+  逐 byte、音訊主頻率與包絡三層都對上 Mesen2／Mednafen（`docs/spec/psg.md` §7）。
 - **`oracle` 套件**：SAT／圖塊／BAT 解碼、圖塊像素差異、Mesen2 畫面讀取與比對，純函式，
   給 `go test` 與之後的 GUI 共用（`docs/spec/oracle-helpers.md`）。
 - **第一個客戶**：`nectaris-cht/oracle/onepce/` 三條 `go test` 把 re/048、re/175、re/234 的

@@ -9,12 +9,13 @@ import (
 
 	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
 	"github.com/wicanr2/onepce-ai-remake/internal/machine"
+	"github.com/wicanr2/onepce-ai-remake/internal/psg"
 	"github.com/wicanr2/onepce-ai-remake/internal/vce"
 	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
 )
 
 // Version is stamped into snapshots and savestates.
-const Version = "0.1.0-m4"
+const Version = "0.1.0-m5"
 
 // Buttons of the two-button pad, usable as a bit set in Press.
 const (
@@ -81,6 +82,7 @@ type Machine struct {
 	watches []*Watch
 	traces  []*traceHook
 	nextID  int
+	vgm     *psg.Recorder
 }
 
 // Load builds a machine around a HuCard image and resets it.
@@ -326,6 +328,35 @@ func (th *TraceHash) Detach() { th.detach() }
 
 // FramebufferNative returns the VDC's display window as 9-bit VCE colours.
 func (pm *Machine) FramebufferNative() (w, h int, px []uint16) { return pm.m.VDC.Framebuffer() }
+
+// --- audio (docs/spec/psg.md §5) ---
+
+// SetAudioRate starts producing interleaved stereo samples at rate Hz;
+// 0 stops. Samples accumulate until DrainAudio takes them.
+func (pm *Machine) SetAudioRate(rate int) { pm.m.PSG.SetSampleRate(rate) }
+
+// DrainAudio returns the samples produced since the last call.
+func (pm *Machine) DrainAudio() []int16 { return pm.m.PSG.Drain() }
+
+// PSGState is the sound chip's registers and counters.
+func (pm *Machine) PSGState() psg.State { return pm.m.PSG.State }
+
+// RecordVGM records PSG port writes made while the start-of-frame counter is
+// in [start, stop) into a VGM stream (spec psg.md §3). Only one recording at
+// a time; a new call replaces the previous one.
+func (pm *Machine) RecordVGM(start, stop uint64) {
+	pm.vgm = psg.NewRecorder(start, stop)
+	pm.m.PSG.OnWrite = pm.vgm.Write
+	pm.m.VDC.OnStartFrame = pm.vgm.StartFrame
+}
+
+// VGM returns the recording so far and whether its window has closed.
+func (pm *Machine) VGM() ([]byte, bool) {
+	if pm.vgm == nil {
+		return nil, false
+	}
+	return pm.vgm.Bytes(), pm.vgm.Done()
+}
 
 // DisplayWindow reports where FramebufferNative's (0,0) sits in the oracle's
 // picture coordinates: display-start dot and the scanline of VDW raster 0

@@ -14,7 +14,7 @@ JSON-RPC 做互動式 watch／step／dump）、使用者裁定（Go library＋CL
 ```
 onepce run   -rom X [-press "f:btn:span,…"] [-to-frame N] [-load in.state] [-save out.state]
              [-screenshot out.png] [-snapshot-dir DIR] [-watch "kind:space:lo-hi[:limit]"]…
-             [-ignore-pc "a,b,…"] [-trace-hash]
+             [-ignore-pc "a,b,…"] [-trace-hash] [-wav out.wav] [-audio-rate 44100] [-vgm start-stop -vgm-out out.vgm]
 onepce rpc   -rom X            JSON-RPC 2.0，每行一個請求／回應（stdin／stdout）
 onepce version
 ```

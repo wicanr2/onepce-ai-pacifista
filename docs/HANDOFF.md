@@ -91,7 +91,20 @@
     nectaris-ebiten-test:20260816-v3 go test -count=1 -run BootTrace -v ./internal/machine/
   ```
 
-## 下一個最小動作（各自先寫 spec）
+- M5 PSG（2026-09-05）：`docs/spec/psg.md` → `internal/psg`（晶片、VGM `Recorder`、`WriteWAV`）、
+  `Machine.SetAudioRate/DrainAudio/RecordVGM/VGM/PSGState`、快照 `PSG` 區段、savestate 格式 3、
+  CLI `-wav`／`-audio-rate`／`-vgm start-stop -vgm-out`。三層對照全過（spec §7）。命令：
+  ```bash
+  # 狀態：既有 state fixture 就含 psg.* 鍵（state_test.go 的 comparePSG）
+  # VGM：先用 nectaris 的 probe 在 Mesen2 錄（VGM_START_FRAME=240 VGM_STOP_FRAME=2000 VGM_PRESS=1680:run:15,…）
+  docker run … -e ONEPCE_VGM_FIXTURE=/work/dist-all/fixtures/vgm/current/route.vgm \
+    -e ONEPCE_VGM_WINDOW=240-2000 -e ONEPCE_VGM_PRESS="1681:run:15,1816:run:15,1951:run:15" \
+    nectaris-ebiten-test:20260816-v3 go test -count=1 -run VGM -v .
+  # 音訊：tools/oracle/mednafen_soundrecord.sh（pce-oracle image）→ mednafen.wav；
+  #       onepce run -to-frame 1320 -wav ours.wav；tools/oracle/compare_wav.py（frame-parity image）
+  ```
+  fixture（不進 git）：`dist-all/fixtures/vgm/current/`、`/tmp/onepce-mednafen/*.wav`。
 
-1. M5 PSG（`docs/PLAN.md` §八）：`docs/spec/psg.md` → `internal/psg`、VGM 記錄、WAV 渲染。
-2. M6 對拍 GUI。
+## 下一個最小動作（先寫 spec）
+
+1. M6 對拍 GUI（`docs/PLAN.md` §八）：`docs/spec/gui.md` → `cmd/onepce-gui`（Ebiten）。

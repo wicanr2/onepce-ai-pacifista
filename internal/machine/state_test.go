@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/wicanr2/onepce-ai-remake/internal/psg"
 )
 
 // M2 oracle comparison (docs/spec/vdc-vce.md §10): replay the same input
@@ -100,6 +103,7 @@ func TestMachineStateMatchesMesen2Dumps(t *testing.T) {
 		}
 		pal := readWords(t, filepath.Join(fixtures, fmt.Sprintf("palette-%d.bin", frame)))
 		compareWords(t, frame, "palette", m.VCE.Palette(), pal)
+		comparePSG(t, frame, st, m.PSG.LastWriteState())
 	}
 }
 
@@ -262,5 +266,68 @@ func compareWords(t *testing.T, frame int, what string, got, want []uint16) {
 			frame, what, diffs, len(got), first, got[first], want[first])
 	} else {
 		t.Logf("frame %d %s: %d words identical", frame, what, len(got))
+	}
+}
+
+// comparePSG checks every psg.* key of the oracle's state dump against the
+// chip as it was at its last port write (docs/spec/psg.md P14/§6).
+func comparePSG(t *testing.T, frame int, st map[string]float64, ps psg.State) {
+	t.Helper()
+	b := func(v bool) int64 {
+		if v {
+			return 1
+		}
+		return 0
+	}
+	ours := map[string]int64{
+		"psg.channelSelect": int64(ps.ChannelSelect), "psg.leftVolume": int64(ps.LeftVolume), "psg.rightVolume": int64(ps.RightVolume),
+		"psg.lfoFrequency": int64(ps.LFOFrequency), "psg.lfoControl": int64(ps.LFOControl),
+	}
+	for i, c := range ps.Channels {
+		k := fmt.Sprintf("psg.channels[%d].", i)
+		ours[k+"amplitude"] = int64(c.Amplitude)
+		ours[k+"currentOutput"] = int64(c.CurrentOutput)
+		ours[k+"ddaEnabled"] = b(c.DDAEnabled)
+		ours[k+"ddaOutputValue"] = int64(c.DDAOutputValue)
+		ours[k+"enabled"] = b(c.Enabled)
+		ours[k+"frequency"] = int64(c.Frequency)
+		ours[k+"leftVolume"] = int64(c.LeftVolume)
+		ours[k+"rightVolume"] = int64(c.RightVolume)
+		ours[k+"noiseEnabled"] = b(c.NoiseEnabled)
+		ours[k+"noiseFrequency"] = int64(c.NoiseFrequency)
+		ours[k+"noiseLfsr"] = int64(c.NoiseLFSR)
+		ours[k+"noiseOutput"] = int64(c.NoiseOutput)
+		ours[k+"noiseTimer"] = int64(c.NoiseTimer)
+		ours[k+"timer"] = int64(c.Timer)
+		ours[k+"waveAddr"] = int64(c.WaveAddr)
+		for w, v := range c.WaveData {
+			ours[k+fmt.Sprintf("waveData%d", w)] = int64(v)
+		}
+	}
+	compared, diffs := 0, []string{}
+	for key, want := range st {
+		if !strings.HasPrefix(key, "psg.") {
+			continue
+		}
+		got, ok := ours[key]
+		if !ok {
+			continue
+		}
+		compared++
+		if got != int64(want) {
+			diffs = append(diffs, fmt.Sprintf("%s=%d/%v", key, got, want))
+		}
+	}
+	if compared == 0 {
+		t.Fatalf("frame %d: the oracle dump has no psg.* keys", frame)
+	}
+	if len(diffs) > 0 {
+		sort.Strings(diffs)
+		if len(diffs) > 20 {
+			diffs = append(diffs[:20], fmt.Sprintf("… %d more", len(diffs)-20))
+		}
+		t.Errorf("frame %d PSG: %d of %d keys differ (ours/oracle): %s", frame, len(diffs), compared, strings.Join(diffs, " "))
+	} else {
+		t.Logf("frame %d PSG: %d keys identical", frame, compared)
 	}
 }

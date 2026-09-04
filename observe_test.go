@@ -116,6 +116,8 @@ func TestSnapshotSectionsAndDiff(t *testing.T) {
 		t.Fatal("snapshot did not capture the writes")
 	}
 	diff := after.Diff(before)
+	// The PSG is not in the diff: it only runs at port writes and frame
+	// boundaries (spec psg.md P1), and the probe never touches it.
 	want := map[Section]bool{SectionRAM: true, SectionVRAM: true, SectionVDCRegs: true, SectionCPU: true}
 	if len(diff) != len(want) {
 		t.Fatalf("diff %v", diff)

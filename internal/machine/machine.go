@@ -8,6 +8,7 @@ import (
 
 	"github.com/wicanr2/onepce-ai-remake/internal/bus"
 	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-remake/internal/psg"
 	"github.com/wicanr2/onepce-ai-remake/internal/vce"
 	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
 )
@@ -71,11 +72,13 @@ type Machine struct {
 	Bus *bus.Bus
 	VDC *vdc.VDC
 	VCE *vce.VCE
+	PSG *psg.PSG
 	Pad *Pad
 
-	lastMaster uint64
-	plan       []Press
-	releaseAt  [8]uint64 // per button bit: frame at which it is released
+	lastMaster   uint64
+	frameCrossed bool // a frame boundary fell inside the current instruction
+	plan         []Press
+	releaseAt    [8]uint64 // per button bit: frame at which it is released
 
 	// FrameHook, when set, is called from inside the CPU cycle in which the
 	// VDC's frame counter advances — the same instant the oracle's
@@ -118,17 +121,19 @@ func (m *Machine) applyPlan() {
 // New builds a machine around a ROM image and resets it.
 func New(rom []byte) (*Machine, error) {
 	m := &Machine{VCE: vce.New(), Pad: &Pad{}}
-	b, err := bus.New(rom, bus.Devices{VCE: m.VCE, Pad: m.Pad})
+	m.PSG = psg.New()
+	b, err := bus.New(rom, bus.Devices{VCE: m.VCE, Pad: m.Pad, PSG: m.PSG})
 	if err != nil {
 		return nil, fmt.Errorf("machine: %w", err)
 	}
 	m.Bus = b
 	m.VDC = vdc.New(m.VCE, irqLine{b})
-	if err := b.Attach(bus.Devices{VDC: m.VDC, VCE: m.VCE, Pad: m.Pad}); err != nil {
+	if err := b.Attach(bus.Devices{VDC: m.VDC, VCE: m.VCE, Pad: m.Pad, PSG: m.PSG}); err != nil {
 		return nil, err
 	}
 	// Every CPU cycle moves the VDC forward, so a status read in the middle of
 	// an instruction sees the video state of that very cycle.
+	m.PSG.Now = b.MasterCycles
 	b.Clock = func(master uint64) {
 		before := m.VDC.Frame()
 		m.VDC.Advance(master - m.lastMaster)
@@ -139,9 +144,13 @@ func New(rom []byte) (*Machine, error) {
 			// SendFrame), so Step-driven runs see them at the same
 			// instruction as RunFrame-driven ones.
 			m.applyPlan()
+			m.frameCrossed = true
 			if m.FrameHook != nil {
 				m.FrameHook(m.VDC.Frame())
 			}
+			// The oracle also runs the PSG in the boundary cycle itself,
+			// after its end-of-frame event (PceConsole::ProcessEndOfFrame).
+			m.PSG.Advance(master)
 		}
 	}
 	m.VDC.Stall = b.StallStep
@@ -155,7 +164,14 @@ func (m *Machine) Step() int {
 	if m.InstructionHook != nil {
 		m.InstructionHook(m.CPU.Peek())
 	}
-	return m.CPU.Step()
+	cycles := m.CPU.Step()
+	if m.frameCrossed {
+		// The oracle runs the PSG once the instruction that crossed the
+		// frame boundary has finished (spec psg.md P1).
+		m.frameCrossed = false
+		m.PSG.Advance(m.Bus.MasterCycles())
+	}
+	return cycles
 }
 
 // RunFrame steps until the VDC reports a frame boundary, then applies the
