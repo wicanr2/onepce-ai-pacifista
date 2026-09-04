@@ -1,0 +1,9 @@
+# 私人輸入與產物一律不進版控
+*.pce
+*.zip
+*.sav
+*.mss
+*.state
+dist-all/
+fixtures-private/
+/tmp/
