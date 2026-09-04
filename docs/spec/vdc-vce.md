@@ -109,4 +109,4 @@ func (c *VCE) Palette() []uint16; ClockDivider() int; Lines() int
 ## 10. 驗收
 
 - 單元：垂直狀態機計數（VSW/VDS/VDW/VCR 給定值 → 每線模式序列）、RCR 觸發線、VBlank 觸發時點（主時脈）、VRAM 讀寫序列（H-029）、位址增量四種、BAT 四種尺寸索引、sprite 尺寸／翻轉、每線 16 上限、狀態讀清除。
-- 對 oracle：（M1 延伸）Nectaris 開機 trace 穿過 VBlank 等待仍逐指令相同——**已達成**（到第 165,454 條，`huc6280.md` §9）；（M2）REVOLT 戰術畫面 frame N 的 VRAM／SAT／VCE 與 Mesen2 傾印逐 word 相同——**已達成**（frame 2400／2600／3000，`machine.md`）；framebuffer 與 P-159 方法解出的畫面相同——**未做**（M4 截圖工具之後）。
+- 對 oracle：（M1 延伸）Nectaris 開機 trace 穿過 VBlank 等待仍逐指令相同——**已達成**（到第 165,454 條，`huc6280.md` §9）；（M2）REVOLT 戰術畫面 frame N 的 VRAM／SAT／VCE 與 Mesen2 傾印逐 word 相同——**已達成**（frame 2400／2600／3000，`machine.md`）；framebuffer 與 Mesen2 同 frame 的畫面逐像素相同——**已達成**（frame 2450／2600／2800 各 76,480 像素零差異，`framebuffer-parity.md` §6）。

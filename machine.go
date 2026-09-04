@@ -14,7 +14,7 @@ import (
 )
 
 // Version is stamped into snapshots and savestates.
-const Version = "0.1.0-m3"
+const Version = "0.1.0-m4"
 
 // Buttons of the two-button pad, usable as a bit set in Press.
 const (
@@ -326,6 +326,14 @@ func (th *TraceHash) Detach() { th.detach() }
 
 // FramebufferNative returns the VDC's display window as 9-bit VCE colours.
 func (pm *Machine) FramebufferNative() (w, h int, px []uint16) { return pm.m.VDC.Framebuffer() }
+
+// DisplayWindow reports where FramebufferNative's (0,0) sits in the oracle's
+// picture coordinates: display-start dot and the scanline of VDW raster 0
+// (docs/spec/framebuffer-parity.md §3).
+func (pm *Machine) DisplayWindow() (dot0, line0 int) { return pm.m.VDC.DisplayWindow() }
+
+// ClockDivider is the VCE dot-clock divider in effect (4, 3 or 2).
+func (pm *Machine) ClockDivider() int { return pm.m.VCE.ClockDivider() }
 
 // Framebuffer expands the native picture to RGBA at native resolution
 // (docs/spec/observe.md O8: no aspect correction).

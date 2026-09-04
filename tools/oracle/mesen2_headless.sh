@@ -4,6 +4,8 @@ set -euo pipefail
 # 在 nectaris-mesen2-pce Docker image 內執行 Mesen2 Lua probe。
 # 呼叫端必須以 Docker 的 -e HOME=<已初始化且可寫的 Mesen 設定目錄> 提供 home；
 # 本工具不修改 host 設定、不複製 ROM 到 output，也不接受未初始化的 headless config。
+# --pcEngine.disableFrameSkipping=true 不可省：全速模式下 Mesen2 距上次繪製不到 10 ms 就略過
+# 繪製（PceVpc::ProcessStartFrame），畫面傾印會隨牆鐘時間拿到舊 frame 的圖。
 
 ROM_ARCHIVE=${1:?用法：mesen2_pce_headless_probe.sh <rom.zip> <output-dir> <probe.lua>}
 OUTPUT_DIR=${2:?用法：mesen2_pce_headless_probe.sh <rom.zip> <output-dir> <probe.lua>}
@@ -50,6 +52,7 @@ timeout "${OUTER_TIMEOUT_SECONDS}s" "$MESEN_BIN" \
   --timeout="$MESEN_TIMEOUT_SECONDS" \
   --doNotSaveSettings \
   --debug.scriptWindow.allowIoOsAccess=true \
+  --pcEngine.disableFrameSkipping=true \
   "$SCRIPT_ALIAS" "$ROM_FILE" >"${RUN_DIR}/mesen.log" 2>&1
 MESEN_EXIT=$?
 set -e

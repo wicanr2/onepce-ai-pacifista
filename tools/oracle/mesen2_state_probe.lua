@@ -12,6 +12,11 @@
 --   vram-<frame>.bin        64 KB VRAM（byte-addressed，little-endian word）
 --   sat-<frame>.bin         512 bytes sprite RAM（若 API 支援）
 --   palette-<frame>.bin     1024 bytes VCE 色盤（little-endian word）
+--   screen-<frame>.bin      Mesen2 輸出畫面：一行標頭 "onepce-mesen2-screen-v1\t<w>\t<h>\n"，
+--                           之後每像素 3 bytes RGB（列優先）。這是 Mesen2 預設濾鏡的輸出
+--                           （PceDefaultVideoFilter：整列同一 clock divider 時寬度為
+--                           GetRowWidth(divider)，左緣從 GetLeftOverscan(divider) 個 dot 起，
+--                           242 列對應 scanline 14–255；色彩經 Mesen2 的 PCE 色盤表展開）
 --   summary.txt
 -- 產物是原版執行狀態，屬私人 fixture，不進版控。
 
@@ -90,6 +95,21 @@ local function dump(frame)
   if sat then
     write_bytes(string.format("%s/sat-%d.bin", out, frame), sat, 0x200)
   end
+  local size = emu.getScreenSize()
+  local buf = emu.getScreenBuffer()
+  local scr = assert(io.open(string.format("%s/screen-%d.bin", out, frame), "wb"))
+  scr:write(string.format("onepce-mesen2-screen-v1\t%d\t%d\n", size.width, size.height))
+  local chunk = {}
+  for i = 1, size.width * size.height do
+    local c = buf[i]
+    chunk[#chunk + 1] = string.char((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+    if #chunk == 4096 then
+      scr:write(table.concat(chunk))
+      chunk = {}
+    end
+  end
+  if #chunk > 0 then scr:write(table.concat(chunk)) end
+  scr:close()
   dumped = dumped + 1
 end
 

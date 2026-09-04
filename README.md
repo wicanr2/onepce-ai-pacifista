@@ -17,6 +17,10 @@ PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wi
 - **觀測**：區間 watch（read／write／exec，CPU 與 VRAM 空間，DMA 可見）、配額與略過計數、
   忽略清單、trace 結構雜湊、區段快照、原生 framebuffer、savestate。
 - **介面**：Go library（根套件 `onepce`）、`cmd/onepce`（`run`／`rpc`）、JSON-RPC over stdio。
+- **畫面**：REVOLT 戰術畫面（含移動範圍）frame 2450／2600／2800 與 Mesen2 逐像素相同
+  （`docs/spec/framebuffer-parity.md`）。
+- **`oracle` 套件**：SAT／圖塊／BAT 解碼、圖塊像素差異、Mesen2 畫面讀取與比對，純函式，
+  給 `go test` 與之後的 GUI 共用（`docs/spec/oracle-helpers.md`）。
 - **第一個客戶**：`nectaris-cht/oracle/onepce/` 三條 `go test` 把 re/048、re/175、re/234 的
   實測值改寫成可重跑的測試。
 
@@ -35,7 +39,7 @@ onepce run -rom X.pce -press "1680:run:15,…" -to-frame 2800   -watch write:vra
 onepce rpc -rom X.pce      # JSON-RPC 2.0，每行一個請求
 ```
 
-建置與測試都在容器裡（`CLAUDE.md` §3）；oracle 測試以 `ONEPCE_ROM`／`ONEPCE_FIXTURES`／
+建置與測試都在容器裡（`CLAUDE.md` §3）；oracle 測試以 `ONEPCE_ROM`／`ONEPCE_FIXTURES`／`ONEPCE_SCREEN_FIXTURES`／
 `ONEPCE_STATE_FIXTURES` 開關，沒設就 skip。
 
 ## 範圍

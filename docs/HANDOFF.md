@@ -56,8 +56,23 @@
   +4 規則對全部單位成立、P-131 的 169 個圖塊 1,215 像素全為 15。
 - **MVP（M0–M4）達成。**
 
+- M2 殘餘＋M4 第三項（2026-09-05）：`docs/spec/framebuffer-parity.md`、`oracle-helpers.md` →
+  `oracle/`（`Sprites`／`TilePixel`／`SpritePixel`／`BAT`／`ChangedTilePixels`／
+  `ReadMesen2Screen`／`MatchScreen`／`SearchScreen`）、`Machine.DisplayWindow`／`ClockDivider`、
+  `screen_oracle_test.go`。P-100 路線 frame 2450／2600／2800 的畫面與 Mesen2 在規則算出的位置
+  (32, 3) 逐像素相同（各 76,480 像素、43–44 色）。過程中發現 Mesen2 全速模式會略過繪製，
+  畫面傾印隨牆鐘拿到舊 frame——harness 固定加 `--pcEngine.disableFrameSkipping=true`，
+  兩次執行畫面逐 byte 相同才採用（spec §6.1）。nectaris 端三條測試改用 `oracle` 套件後仍綠。
+  畫面 fixture：`dist-all/fixtures/screen/current/`（screen／vram／sat／palette ×3 frame），命令：
+  ```bash
+  docker run --rm --network none -v "$PWD":/work -w /work -v /tmp/nec-rom:/rom:ro \
+    -u "$(id -u):$(id -g)" -e HOME=/tmp -e ONEPCE_ROM=/rom/rom.pce \
+    -e ONEPCE_SCREEN_FIXTURES=/work/dist-all/fixtures/screen/current \
+    -e ONEPCE_SCREEN_PRESS="1680:run:15,1815:run:15,1950:run:15,2085:run:15,2220:run:15,2355:run:15,2500:right:8,2520:right:8,2540:right:8,2560:right:8,2580:right:8,2600:right:8,2620:right:8,2640:down:8,2660:down:8,2680:down:8,2700:down:8,2720:i:8,2740:i:8" \
+    nectaris-ebiten-test:20260816-v3 go test -count=1 -run TestFramebufferMatchesMesen2Picture -v .
+  ```
+
 ## 下一個最小動作（MVP 之後，各自先寫 spec）
 
 1. VRAM 存取 stall 與 VDC 忙碌旗標（`vdc-vce.md` §8 第一列），目標是 trace 對照穿過 timer 相位。
-2. framebuffer 對 P-159 解幀逐像素比（M2 殘餘）。
-3. M5 PSG、M6 對拍 GUI（`docs/PLAN.md` §八）。
+2. M5 PSG、M6 對拍 GUI（`docs/PLAN.md` §八）。

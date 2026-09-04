@@ -124,6 +124,11 @@ type VDC struct {
 	tLatchY, tLatchX, tIRQ, tRCR, tHDW                int
 	doneLatchY, doneLatchX, doneIRQ, doneRCR, doneHDW bool
 
+	// Where the last framebuffer sits in the oracle's picture coordinates
+	// (docs/spec/framebuffer-parity.md §3): first display dot of the line
+	// and the scanline of VDW raster 0.
+	fbDot0, fbLine0 int
+
 	needVBlank   bool
 	vblankDone   bool
 	allowDMA     bool
@@ -198,6 +203,11 @@ func (d *VDC) TakeFrameReady() bool {
 // Framebuffer is the last rendered picture: width, height and one 9-bit VCE
 // colour per pixel, top-left first. Only the display window is included.
 func (d *VDC) Framebuffer() (int, int, []uint16) { return d.fbW, d.fbH, d.fb }
+
+// DisplayWindow reports where the framebuffer's (0,0) sits in the line/dot
+// coordinates the oracle uses: the display-start dot (hclock ÷ VCE divider)
+// and the scanline of VDW raster 0 (docs/spec/framebuffer-parity.md §3).
+func (d *VDC) DisplayWindow() (dot0, line0 int) { return d.fbDot0, d.fbLine0 }
 
 // --- bus.Device ---
 
@@ -488,6 +498,9 @@ func (d *VDC) runEvents() {
 	if !d.doneHDW && d.tHDW >= 0 && d.hclock >= d.tHDW {
 		d.doneHDW = true
 		if d.vmode == modeVDW {
+			if d.rcr == 0 {
+				d.fbDot0, d.fbLine0 = d.tHDW/d.div(), d.scanline
+			}
 			d.renderLine(d.rcr)
 		}
 	}

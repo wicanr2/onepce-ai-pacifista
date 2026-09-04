@@ -50,8 +50,9 @@ type State struct {
 	DMAPending, DMARunning   bool
 	DMADoneAt                uint64
 
-	FBW, FBH int
-	FB       []uint16
+	FBW, FBH        int
+	FBDot0, FBLine0 int
+	FB              []uint16
 }
 
 // Save copies the controller state out.
@@ -71,7 +72,7 @@ func (d *VDC) Save() State {
 		Status: d.status, BG: d.bg, SPR: d.spr, NextBG: d.nextBg, NextSPR: d.nextSpr, Burst: d.burst,
 		SATBPending: d.satbPending, SATBRunning: d.satbRunning, SATBDoneAt: d.satbDoneAt,
 		DMAPending: d.dmaPending, DMARunning: d.dmaRunning, DMADoneAt: d.dmaDoneAt,
-		FBW: d.fbW, FBH: d.fbH,
+		FBW: d.fbW, FBH: d.fbH, FBDot0: d.fbDot0, FBLine0: d.fbLine0,
 	}
 	s.FB = append([]uint16(nil), d.fb...)
 	return s
@@ -95,6 +96,7 @@ func (d *VDC) Restore(s State) {
 	d.satbPending, d.satbRunning, d.satbDoneAt = s.SATBPending, s.SATBRunning, s.SATBDoneAt
 	d.dmaPending, d.dmaRunning, d.dmaDoneAt = s.DMAPending, s.DMARunning, s.DMADoneAt
 	d.fbW, d.fbH = s.FBW, s.FBH
+	d.fbDot0, d.fbLine0 = s.FBDot0, s.FBLine0
 	d.fb = append([]uint16(nil), s.FB...)
 	d.lineSpr = d.lineSpr[:0]
 }
