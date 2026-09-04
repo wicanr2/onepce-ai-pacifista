@@ -11,7 +11,8 @@ PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wi
 ## 範圍
 
 第一版：HuCard 標準機（HuC6280、HuC6270 VDC、HuC6260 VCE、PSG、兩鍵手把、含 384 KB
-這類非 2 的冪 HuCard）。不做 CD-ROM²、SuperGrafx、Arcade Card。GUI 是可選的最後一項。
+這類非 2 的冪 HuCard）。不做 CD-ROM²、SuperGrafx、Arcade Card。GUI 在 headless 全部
+通過之後做，定位是對拍輔助（原生畫面、單步、快照、與 remake 畫面並排／疊圖）。
 
 ## 授權、致謝與聲明
 

@@ -24,8 +24,8 @@ png := m.Framebuffer()                // 原生 256×224（或當前 VDC 模式�
 remake 專案裡的對照測試就能寫成 `go test`：載入玩家自己的 ROM，走一段決定性輸入，
 把 SAT 位置、BAT、色盤、PSG 暫存器序列與 remake 的狀態逐欄位比。
 
-**不是**要做給玩家用的通用模擬器：沒有 GUI 的優先順序、沒有 CD-ROM²、不追求逐週期
-與真機一致（見第七節的準確度定義）。
+**不是**要做給玩家用的通用模擬器：GUI 只為對拍服務（第八節 M6）、沒有 CD-ROM²、
+不追求逐週期與真機一致（見第七節的準確度定義）。
 
 ## 二、從 Nectaris 專案帶過來的需求（已知事實）
 
@@ -157,7 +157,7 @@ CPU／VDC 內部的時序狀態機不外露。RPC 與 CLI 是 `onepce` 套件的
 | M3 觀測層 | watchpoint（區間、三種類型、DMA 可見）、事件配額與略過計數、區段快照、savestate | 用它重做 `re/203` 的外框寫入端定位，結果與 Mesen2 相同 |
 | M4 介面 | CLI、JSON-RPC over stdio、`oracle/` 測試助手；`nectaris-cht` 接上第一批 `go test` | Nectaris 三條對照測試在 `NECTARIS_ROM` 下綠 |
 | M5 PSG | 六聲道、VGM 記錄、WAV 渲染 | 曲號 `$26`／`$29` 的暫存器序列與 Mesen2 probe 相同；WAV 與 Mednafen 頻譜相關係數達門檻（門檻在 spec 定） |
-| M6（選）GUI | Ebiten 視窗、即時輸入 | 只在 headless 全過之後 |
+| M6 對拍 GUI（使用者裁定納入，2026-09-04） | Ebiten 視窗：原生 framebuffer 整數倍縮放、frame／scanline 計數、暫停／單步／逐 frame、熱鍵存快照與截圖、watchpoint 命中即時列表；**第二格**可載入 remake 的截圖或錄影幀序列並排或疊圖（差異高亮），輸入可錄成 frame 腳本回放 | headless 全過之後才做；GUI 只呼叫 `onepce` 公開介面，不得長出自己的狀態；並排視圖用同一組 frame 腳本重播時，headless 與 GUI 的快照雜湊相同 |
 
 每個里程碑先寫 `docs/spec/*.md` 再實作（與 `nectaris-cht` 同一套 spec 先行流程）。
 
@@ -168,8 +168,8 @@ CPU／VDC 內部的時序狀態機不外露。RPC 與 CLI 是 `onepce` 套件的
 | 384 KB HuCard 的 bank 鏡像 | Nectaris 專案有實測的 MPR 快照與 ROM offset 換算，但沒有寫成 mapper 規則 | M2 先從 ROM 大小與 oracle 的 MPR 行為推 mapping，記證據等級 |
 | HuC6280 未文件化行為（`T` flag、decimal、未定義 opcode）| 公開文件不完整 | 用 oracle trace 裁決，逐條記勘誤 |
 | VDC 時序細節（`BXR`／`BYR` latch、sprite overflow、DMA 週期）| 文件間有出入 | 先 frame 級，差異點列成 spec 的未知表 |
-| 測試 ROM 的可得性 | 未查 | M1 前查一次；沒有就全靠 oracle fixture |
-| oracle fixture 是原版衍生資料 | 不能進 Git | 只存雜湊與轉檔腳本，fixture 放本機 `dist-all/`／`/tmp`，測試無 ROM 時 skip 並明示 |
+| 測試 ROM 的可得性 | 未查 | M1 前查一次；**授權不明的測試 ROM 允許在本機用**（使用者裁定 2026-09-04），只記雜湊與結果摘要，ROM 本體與可重建它的資料不進 repo |
+| oracle fixture 與測試 ROM 是原版／授權不明資料 | 不能進 Git，且 repo 是 **public** | 只存雜湊與轉檔腳本，fixture 放本機 `dist-all/`／`/tmp`，測試無 ROM 時 skip 並明示；`tools/test_public_tree.py` 這類機械 gate 在 M0 就要有 |
 | ares 版本鎖定 | 未定 | M0 記下參考的 ares commit 與檔案雜湊 |
 
 ## 十、與 `nectaris-cht` 的關係
@@ -180,10 +180,13 @@ CPU／VDC 內部的時序狀態機不外露。RPC 與 CLI 是 `onepce` 套件的
 - Docker：初期沿用 `nectaris-ebiten-test:20260816-v3`（Go 1.25.12、Xvfb），M0 之後建
   `onepce-dev:<日期>` 自己的 image。
 
-## 十一、待使用者決定
+## 十一、已裁定事項（2026-09-04）
 
-1. GitHub repo 已建 **private**（與 `nectaris-cht` 相同）；公開時機另議。
-2. M6 GUI 要不要進第一版範圍——本檔預設不進。
-3. 測試 ROM 若只找到授權不明的，是否寧可不用。
+| 事項 | 裁定 |
+|---|---|
+| 授權路線 | B：RRSAL-1.0；Mesen2 只取行為事實、不翻碼；結構參考 ares（第三節） |
+| repo 可見性 | **public**，自第一個 commit 起就帶 `LICENSE` |
+| GUI | 納入第一版，定位是對拍輔助（M6），在 headless 全過之後做 |
+| 授權不明的測試 ROM | 允許本機使用，ROM 本體不進 repo，只記雜湊與結果 |
 
-已裁：授權路線 B（RRSAL-1.0；Mesen2 只取行為事實，結構參考 ares），2026-09-04。
+目前沒有未決項；新的決策需求出現時在這裡加列，不在對話裡口頭裁。
