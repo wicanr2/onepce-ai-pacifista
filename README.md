@@ -24,6 +24,8 @@ PSG 可記錄成 VGM。第一個客戶是 [`nectaris-cht`](https://github.com/wi
   逐 byte、音訊主頻率與包絡三層都對上 Mesen2／Mednafen（`docs/spec/psg.md` §7）。
 - **`oracle` 套件**：SAT／圖塊／BAT 解碼、圖塊像素差異、Mesen2 畫面讀取與比對，純函式，
   給 `go test` 與之後的 GUI 共用（`docs/spec/oracle-helpers.md`）。
+- **對拍 GUI**：`onepce-gui` 把原生畫面與 remake 的截圖／`-record-dir` 幀序列並排、疊圖或差異高亮，
+  可暫停、單步、逐 frame，鍵盤輸入錄成 frame 腳本重播（`docs/spec/gui.md`）。
 - **第一個客戶**：`nectaris-cht/oracle/onepce/` 三條 `go test` 把 re/048、re/175、re/234 的
   實測值改寫成可重跑的測試。
 
@@ -40,6 +42,8 @@ fmt.Println(w.Count(), w.Skipped())                        // 略過筆數一定
 ```bash
 onepce run -rom X.pce -press "1680:run:15,…" -to-frame 2800   -watch write:vram:5480-7920 -screenshot out.png -snapshot-dir snap -save f2800.state -trace-hash
 onepce rpc -rom X.pce      # JSON-RPC 2.0，每行一個請求
+onepce-gui -rom X.pce -press "…" -ref /path/to/record-dir -ref-start 2400 -ref-every 2 \
+  -watch write:vram:5480-7920 -record-plan plan.txt   # 本機開視窗；P 暫停 N 單步 F 逐 frame 1/2/3 模式
 ```
 
 建置與測試都在容器裡（`CLAUDE.md` §3）；oracle 測試以 `ONEPCE_ROM`／`ONEPCE_FIXTURES`／`ONEPCE_SCREEN_FIXTURES`／

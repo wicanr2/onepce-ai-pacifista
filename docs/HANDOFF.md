@@ -105,6 +105,14 @@
   ```
   fixture（不進 git）：`dist-all/fixtures/vgm/current/`、`/tmp/onepce-mednafen/*.wav`。
 
-## 下一個最小動作（先寫 spec）
+- M6 對拍 GUI（2026-09-05）：`docs/spec/gui.md` → `internal/gui`（`Session`、`Reference`、`Diff`、
+  `ParseWatch`、`FormatPresses`）與 `cmd/onepce-gui`（Ebiten v2.9.9，與 nectaris 同版，模組快取離線可建）。
+  單元測試守 G1（session 逐 frame 推進的快照雜湊 = headless 重播同一份腳本）；容器裡
+  `xvfb-run -a onepce-gui -rom …` 跑 10 秒無 panic。人眼驗收（本機開視窗載 nectaris 的
+  `-record-dir` 序列）未做，記在 CONTEXT W9。
 
-1. M6 對拍 GUI（`docs/PLAN.md` §八）：`docs/spec/gui.md` → `cmd/onepce-gui`（Ebiten）。
+## 下一個最小動作
+
+1. 本機開 `onepce-gui` 載 nectaris `-record-dir` 序列做人眼驗收；量戰術畫面的 remake 畫布幾何，
+   改 `-ref-scale`／`-ref-offset` 預設值。
+2. 需要時：RPC 加音訊／VGM 方法；GUI 加聲音輸出。
