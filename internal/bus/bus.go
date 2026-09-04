@@ -11,7 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-remake/internal/addr"
 )
 
 const (
@@ -42,7 +42,7 @@ type Bus struct {
 	ROM     []byte
 	ROMHash string
 	RAM     [bankSize]uint8
-	mpr     onepce.MPR
+	mpr     addr.MPR
 	mprLast uint8
 	// romBank[i] is the ROM bank presented in physical bank i (0..$7F), or -1.
 	romBank  [0x80]int
@@ -55,6 +55,11 @@ type Bus struct {
 	// Clock, when set, is called after every tick with the master clock so
 	// the video side can be kept in step with each CPU cycle.
 	Clock func(master uint64)
+	// OnRead / OnWrite, when set, see every CPU-space access with its value
+	// (reads after the value is known). They are the observe layer's taps
+	// (docs/spec/observe.md O2) and must not touch the bus.
+	OnRead  func(logical uint16, value uint8)
+	OnWrite func(logical uint16, value uint8)
 }
 
 // New maps a HuCard image. The image must be a whole number of 8 KiB banks.
@@ -96,7 +101,7 @@ func (b *Bus) Attach(dev Devices) error {
 
 // Reset is the power-on state of spec B6.
 func (b *Bus) Reset() {
-	b.mpr = onepce.MPR{}
+	b.mpr = addr.MPR{}
 	b.mprLast = 0
 	b.fast = false
 	b.irqMask = 0
@@ -127,24 +132,24 @@ func (b *Bus) mapROM() {
 }
 
 // MPR returns a copy of the paging registers for events and snapshots.
-func (b *Bus) MPR() onepce.MPR { return b.mpr }
+func (b *Bus) MPR() addr.MPR { return b.mpr }
 
 // Physical maps a logical address under the current paging state.
 func (b *Bus) Physical(logical uint16) uint32 { return b.mpr.Physical(logical) }
 
 // FileOffset is the ROM file offset behind a physical address, or
-// onepce.FileUnknown for RAM, I/O and unmapped banks (spec B5).
+// addr.FileUnknown for RAM, I/O and unmapped banks (spec B5).
 func (b *Bus) FileOffset(physical uint32) int64 {
 	bank := physical >> 13
 	if bank >= 0x80 {
-		return onepce.FileUnknown
+		return addr.FileUnknown
 	}
 	return int64(b.romBank[bank])*bankSize + int64(physical&0x1FFF)
 }
 
 // Resolve is the three-space view of a logical address right now.
-func (b *Bus) Resolve(logical uint16) onepce.Address {
-	a := onepce.Resolve(logical, b.mpr)
+func (b *Bus) Resolve(logical uint16) addr.Address {
+	a := addr.Resolve(logical, b.mpr)
 	a.File = b.FileOffset(a.Physical)
 	return a
 }
@@ -170,6 +175,14 @@ func (b *Bus) Idle() { b.Tick(1) }
 
 func (b *Bus) Read(logical uint16) uint8 {
 	b.Tick(1)
+	v := b.readRaw(logical)
+	if b.OnRead != nil {
+		b.OnRead(logical, v)
+	}
+	return v
+}
+
+func (b *Bus) readRaw(logical uint16) uint8 {
 	bank := b.mpr.Bank(logical)
 	off := logical & 0x1FFF
 	switch {
@@ -185,6 +198,9 @@ func (b *Bus) Read(logical uint16) uint8 {
 
 func (b *Bus) Write(logical uint16, value uint8) {
 	b.Tick(1)
+	if b.OnWrite != nil {
+		b.OnWrite(logical, value)
+	}
 	bank := b.mpr.Bank(logical)
 	off := logical & 0x1FFF
 	switch {

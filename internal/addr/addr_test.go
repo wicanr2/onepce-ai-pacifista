@@ -1,4 +1,4 @@
-package onepce
+package addr
 
 import "testing"
 

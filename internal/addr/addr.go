@@ -1,10 +1,9 @@
-// Package onepce is the public entry point of the OnePCE AI Remake emulator:
-// a headless-first PC Engine emulator whose state is fully observable, so that
-// AI agents and remake test suites can query the original game as a library.
-//
-// Only four concepts leak out of this package: Machine, Snapshot, Event and
-// Input (docs/PLAN.md §五). Everything else is internal.
-package onepce
+// Package addr is the three-space address model shared by every layer:
+// CPU logical, 21-bit physical and ROM file offset, always with the paging
+// state that produced the translation. The root package re-exports these
+// types; internal packages import this one so the dependency graph stays a
+// tree. Spec: docs/spec/address-model.md.
+package addr
 
 import "fmt"
 

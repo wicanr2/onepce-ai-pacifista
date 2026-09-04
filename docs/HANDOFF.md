@@ -41,9 +41,13 @@
     nectaris-ebiten-test:20260816-v3 go test -count=1 -v ./internal/machine/
   ```
 
+- M3（2026-09-05）：`docs/spec/observe.md`、`state.md` → 根套件 `onepce`（`Load`、`Schedule`、
+  `Watch`、`Trace`／`NewTraceHash`、`Snapshot`、`Framebuffer`、`SaveState`／`LoadState`）；
+  位址型別搬到 `internal/addr`（根套件別名），bus／VDC／CPU／machine 加觀測鉤子。
+  `outline_oracle_test.go`：RUN×6 → right×7 → down×4 → I → I，frame 2500–2800 監看
+  `$5480–$7920` 的 VRAM 寫入，2,323 個改寫 word 全部只設位元、寫入端全在 `$A1F5–$A3CF`。
+
 ## 下一個最小動作
 
-1. M3：`docs/spec/observe.md` → watchpoint（區間、read/write/exec、DMA 可見）、事件配額與
-   略過計數、區段快照、savestate。
-2. M4：CLI（run／screenshot／snapshot／trace／watch）、JSON-RPC、`oracle/` 助手，
-   在 `nectaris-cht` 接第一批 `go test`。
+1. M4：`docs/spec/cli-rpc.md` → `cmd/onepce`（run／screenshot／snapshot／trace／watch／state）、
+   JSON-RPC over stdio、`oracle/` 助手，在 `nectaris-cht` 接第一批 `go test`。

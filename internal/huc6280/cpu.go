@@ -63,6 +63,9 @@ type CPU struct {
 	A, X, Y, S, P uint8
 	PC            uint16
 	Cycles        uint64
+	// InstPC is the address the current (or last) instruction started at:
+	// what an event inside the instruction reports as its PC (spec O1).
+	InstPC uint16
 
 	bus     Bus
 	n       int  // cycles spent so far in the current instruction
@@ -119,6 +122,7 @@ func (c *CPU) Step() int {
 	c.P &^= FlagT
 
 	c.n = 0
+	c.InstPC = c.PC
 	c.opcode = c.read(c.PC)
 	c.PC++
 	c.op = Table[c.opcode]

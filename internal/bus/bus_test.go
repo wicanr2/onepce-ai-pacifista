@@ -3,7 +3,7 @@ package bus
 import (
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-remake/internal/addr"
 )
 
 // fakeROM has n banks; byte 0 of each bank is the bank number.
@@ -52,7 +52,7 @@ func TestPowerOfTwoROMWrapsAndUnmappedReadsFF(t *testing.T) {
 	if got := b.Read(0x4000); got != 0xFF {
 		t.Fatalf("unmapped bank reads %02X, want FF", got)
 	}
-	if b.FileOffset(0x80<<13) != onepce.FileUnknown {
+	if b.FileOffset(0x80<<13) != addr.FileUnknown {
 		t.Fatal("unmapped bank must have no file offset")
 	}
 }
@@ -70,7 +70,7 @@ func TestWorkRAMIsMirroredAndROMIsReadOnly(t *testing.T) {
 	if b.Read(0x6000) != 0 {
 		t.Fatal("ROM must ignore writes")
 	}
-	if got := b.Resolve(0x2010); got.File != onepce.FileUnknown || got.Physical != 0x1F0010 {
+	if got := b.Resolve(0x2010); got.File != addr.FileUnknown || got.Physical != 0x1F0010 {
 		t.Fatalf("Resolve($2010) = %s", got)
 	}
 }

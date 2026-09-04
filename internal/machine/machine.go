@@ -82,6 +82,9 @@ type Machine struct {
 	// end-of-frame callback runs — so a snapshot taken there is comparable
 	// cycle for cycle.
 	FrameHook func(frame uint64)
+	// InstructionHook, when set, runs before every instruction with the
+	// registers as they are at that point (exec watches, trace).
+	InstructionHook func(snap huc6280.Snapshot)
 }
 
 // Schedule adds presses to the input plan. They take effect at the frame
@@ -140,6 +143,9 @@ func New(rom []byte) (*Machine, error) {
 
 // Step executes one CPU instruction; the video side follows cycle by cycle.
 func (m *Machine) Step() int {
+	if m.InstructionHook != nil {
+		m.InstructionHook(m.CPU.Peek())
+	}
 	return m.CPU.Step()
 }
 

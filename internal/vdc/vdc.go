@@ -78,10 +78,23 @@ type spriteCell struct {
 	loadSP23 bool
 }
 
+// Source says who wrote a VRAM word (docs/spec/observe.md O2).
+type Source uint8
+
+const (
+	ByCPU Source = iota
+	ByDMA
+	BySATB
+)
+
 // VDC is the controller. Zero value is not usable; use New.
 type VDC struct {
 	vce *vce.VCE
 	irq IRQLine
+
+	// OnVRAMWrite, when set, sees every VRAM word write with its source;
+	// SATB transfers report the SAT index instead of a VRAM address.
+	OnVRAMWrite func(addr uint16, value uint16, src Source)
 
 	vram [vramWords]uint16
 	sat  [satWords]uint16
@@ -169,6 +182,10 @@ func (d *VDC) Registers() Registers {
 
 // Frame is the number of completed frames.
 func (d *VDC) Frame() uint64 { return d.frame }
+
+// Scanline and HClock locate the current raster position for events.
+func (d *VDC) Scanline() int { return d.scanline }
+func (d *VDC) HClock() int   { return d.hclock }
 
 // TakeFrameReady reports (and clears) whether a frame boundary passed since
 // the last call.
@@ -291,8 +308,15 @@ func (d *VDC) readVRAM(addr uint16) uint16 {
 }
 
 func (d *VDC) writeVRAM(addr, value uint16) {
+	d.writeVRAMFrom(addr, value, ByCPU)
+}
+
+func (d *VDC) writeVRAMFrom(addr, value uint16, src Source) {
 	if addr < vramWords {
 		d.vram[addr] = value
+		if d.OnVRAMWrite != nil {
+			d.OnVRAMWrite(addr, value, src)
+		}
 	}
 }
 
@@ -541,6 +565,9 @@ func (d *VDC) startSATB() {
 	src := d.reg[0x13]
 	for i := 0; i < satWords; i++ {
 		d.sat[i] = d.readVRAM(src + uint16(i))
+		if d.OnVRAMWrite != nil {
+			d.OnVRAMWrite(uint16(i), d.sat[i], BySATB)
+		}
 	}
 	d.satbRunning = true
 	d.satbDoneAt = d.master + uint64(d.dots(4*satWords))
@@ -554,7 +581,7 @@ func (d *VDC) startVRAMDMA() {
 	src, dst := d.reg[0x10], d.reg[0x11]
 	n := int(d.reg[0x12]) + 1
 	for i := 0; i < n; i++ {
-		d.writeVRAM(dst, d.readVRAM(src))
+		d.writeVRAMFrom(dst, d.readVRAM(src), ByDMA)
 		if d.dcr()&0x04 != 0 {
 			src--
 		} else {
