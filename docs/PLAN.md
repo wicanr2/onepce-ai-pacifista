@@ -120,7 +120,7 @@ onepce                 對外唯一入口：Machine、Snapshot、Event、Input�
 介面原則（`rulebook/70`）：呼叫端只需要認識 `Machine`、`Snapshot`、`Event`、`Input` 四個概念；
 CPU／VDC 內部的時序狀態機不外露。RPC 與 CLI 是 `onepce` 套件的薄包裝，不各自長出語意。
 
-位址顯示格式固定一種（R1）：`L:$6151 P:$0C151 F:0x0C151 MPR=[FF F8 13 14 01 02 03 00]`。
+位址顯示格式固定一種（R1）：`L:$6151 P:$28151 F:0x28151 MPR=[FF F8 13 14 01 02 03 00]`。
 
 ## 六、驗證策略（先有可重跑的 pass/fail，再寫功能）
 
