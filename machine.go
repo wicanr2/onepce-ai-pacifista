@@ -7,11 +7,11 @@ import (
 	"image"
 	"image/color"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
-	"github.com/wicanr2/onepce-ai-remake/internal/machine"
-	"github.com/wicanr2/onepce-ai-remake/internal/psg"
-	"github.com/wicanr2/onepce-ai-remake/internal/vce"
-	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/machine"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/psg"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/vce"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/vdc"
 )
 
 // Version is stamped into snapshots and savestates.

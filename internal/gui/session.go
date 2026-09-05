@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-pacifista"
 )
 
 // MaxHits is how many recent watch events the session keeps.

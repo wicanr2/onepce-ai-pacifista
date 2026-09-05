@@ -1,4 +1,4 @@
-# OnePCE AI Remake — 目前狀態
+# OnePCE AI Pacifista — 目前狀態
 
 本檔是狀態與 worklist 的單一真相；方法在 `CLAUDE.md`，規劃在 `docs/PLAN.md`。
 

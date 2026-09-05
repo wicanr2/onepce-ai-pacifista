@@ -3,7 +3,7 @@ package bus
 import (
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/addr"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/addr"
 )
 
 // fakeROM has n banks; byte 0 of each bank is the bank number.

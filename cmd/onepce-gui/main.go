@@ -18,8 +18,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	"github.com/wicanr2/onepce-ai-remake"
-	"github.com/wicanr2/onepce-ai-remake/internal/gui"
+	"github.com/wicanr2/onepce-ai-pacifista"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/gui"
 )
 
 type watchFlags []string

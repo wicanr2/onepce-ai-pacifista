@@ -13,7 +13,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-pacifista"
 )
 
 const maxQueue = 100000

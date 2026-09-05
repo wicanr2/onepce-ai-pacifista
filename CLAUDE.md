@@ -1,4 +1,4 @@
-# OnePCE AI Remake — 工作契約
+# OnePCE AI Pacifista — 工作契約
 
 給 AI 與 remake 對拍用的 PC Engine 模擬器（Go）。規劃在 `docs/PLAN.md`，目前狀態與
 worklist 在 `CONTEXT.md`，每輪交接在 `docs/HANDOFF.md`。本檔只寫工作方法。

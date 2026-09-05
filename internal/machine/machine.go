@@ -6,11 +6,11 @@ package machine
 import (
 	"fmt"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/bus"
-	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
-	"github.com/wicanr2/onepce-ai-remake/internal/psg"
-	"github.com/wicanr2/onepce-ai-remake/internal/vce"
-	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/bus"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/psg"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/vce"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/vdc"
 )
 
 // Button bits of the two-button pad, in the order the port reports them.

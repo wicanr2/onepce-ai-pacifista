@@ -7,7 +7,7 @@
 // 結構是自己的）。
 package vdc
 
-import "github.com/wicanr2/onepce-ai-remake/internal/vce"
+import "github.com/wicanr2/onepce-ai-pacifista/internal/vce"
 
 // IRQLine is the VDC's interrupt output (IRQ1 on the bus).
 type IRQLine interface {

@@ -1,6 +1,6 @@
 package bus
 
-import "github.com/wicanr2/onepce-ai-remake/internal/addr"
+import "github.com/wicanr2/onepce-ai-pacifista/internal/addr"
 
 // TimerState is the serialisable timer.
 type TimerState struct {

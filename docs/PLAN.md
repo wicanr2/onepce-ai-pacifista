@@ -1,4 +1,4 @@
-# OnePCE AI Remake — 規劃書
+# OnePCE AI Pacifista — 規劃書
 
 日期：2026-09-04。狀態：**草案**；授權路線已裁（第三節），其餘未決項在第十一節。
 
@@ -97,9 +97,10 @@ PCE 核心在 `ares/pce/`（`cpu/`、`vdp/`（含 `vce.cpp`、`vdc.cpp`、`dma.c
 
 ## 四、專案名稱
 
-`onepce-ai-remake`：`OnePCE` 唸起來就是 One Piece，PCE 藏在裡面；`ai-remake` 說明它是
-給 AI 與 remake 對拍用的。Go module path：`github.com/wicanr2/onepce-ai-remake`，
-套件根名 `onepce`。GitHub 上 `onepce-ai-remake` 與 `onepce` 都尚未被使用（2026-09-04 查）。
+`onepce-ai-pacifista`（使用者 2026-09-05 定名，原名 `onepce-ai-remake`）：`OnePCE` 唸起來就是
+One Piece，PCE 藏在裡面；`ai` 說明它是給 AI 代理用的；Pacifista（和平主義者）是航海王裡
+以人為本製造的機械複製體——模擬器就是原機的複製體，也呼應姊妹專案 dosgolem 的命名。
+Go module path：`github.com/wicanr2/onepce-ai-pacifista`，套件根名 `onepce`。
 
 ## 五、架構（深模組、窄介面）
 

@@ -2,7 +2,7 @@
 
 `docs/PLAN.md` M4 列了 `oracle/` 測試助手。第一個客戶 `nectaris-cht/oracle/onepce/` 先把
 SAT 解碼與圖塊像素解碼寫在測試檔裡；本 spec 把它們收成公開套件
-`github.com/wicanr2/onepce-ai-remake/oracle`，讓每個 `go test` 不必各抄一份 H-030／SAT 公式。
+`github.com/wicanr2/onepce-ai-pacifista/oracle`，讓每個 `go test` 不必各抄一份 H-030／SAT 公式。
 
 ## 1. 目標與範圍
 

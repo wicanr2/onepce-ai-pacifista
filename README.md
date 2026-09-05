@@ -1,6 +1,8 @@
-# OnePCE AI Remake
+# OnePCE AI Pacifista
 
 給 AI 代理與 remake 專案對拍用的 PC Engine 模擬器，以 Go 撰寫，headless 優先。
+名字：OnePCE 唸起來是 One Piece；Pacifista 是航海王裡以人為本造出的機械複製體，
+模擬器就是原機的複製體（原名 `onepce-ai-remake`，2026-09-05 改名）。
 
 它的價值不在「能玩」，在**狀態可完整觀測、可序列化、可在 `go test` 裡當函式庫呼叫**：
 watchpoint 帶完整 MPR、區段快照有標籤、輸入以 frame 腳本化且決定性、畫面以原生像素輸出、

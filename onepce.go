@@ -6,7 +6,7 @@
 // Press (docs/PLAN.md §五). Everything else is internal.
 package onepce
 
-import "github.com/wicanr2/onepce-ai-remake/internal/addr"
+import "github.com/wicanr2/onepce-ai-pacifista/internal/addr"
 
 // Address model (docs/spec/address-model.md), re-exported from internal/addr.
 type (

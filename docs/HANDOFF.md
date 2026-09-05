@@ -4,7 +4,7 @@
 
 ## Repository
 
-- branch `main`，public，remote `github.com/wicanr2/onepce-ai-remake`。
+- branch `main`，public，remote `github.com/wicanr2/onepce-ai-pacifista`。
 - 參考副本：`~/cht/tmp/Mesen2`（`b9fa69d`，只取行為事實）、`~/cht/tmp/ares`（`7b51c8a`，結構）。
 - 建置 image 暫借 `nectaris-ebiten-test:20260816-v3`。
 

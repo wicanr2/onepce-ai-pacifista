@@ -11,7 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/addr"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/addr"
 )
 
 const (

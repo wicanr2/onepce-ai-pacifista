@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake/oracle"
+	"github.com/wicanr2/onepce-ai-pacifista/oracle"
 )
 
 // Oracle acceptance for docs/spec/framebuffer-parity.md: every pixel of the

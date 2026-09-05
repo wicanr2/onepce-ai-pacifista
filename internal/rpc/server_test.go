@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-pacifista"
 )
 
 // The same probe as the root package tests: map RAM/IO, write $42 to zero

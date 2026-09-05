@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/machine"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/machine"
 )
 
 // StateFormat is the savestate container version (docs/spec/state.md S2).

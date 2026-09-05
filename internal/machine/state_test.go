@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/psg"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/psg"
 )
 
 // M2 oracle comparison (docs/spec/vdc-vce.md §10): replay the same input

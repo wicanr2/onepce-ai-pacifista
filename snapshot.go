@@ -7,9 +7,9 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
-	"github.com/wicanr2/onepce-ai-remake/internal/psg"
-	"github.com/wicanr2/onepce-ai-remake/internal/vdc"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/psg"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/vdc"
 )
 
 // Section names a snapshot region (docs/spec/observe.md O7).

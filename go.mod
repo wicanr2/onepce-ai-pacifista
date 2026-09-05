@@ -1,4 +1,4 @@
-module github.com/wicanr2/onepce-ai-remake
+module github.com/wicanr2/onepce-ai-pacifista
 
 go 1.25
 

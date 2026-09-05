@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/huc6280"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/huc6280"
 )
 
 // Oracle comparison (docs/spec/huc6280.md §8, vdc-vce.md §10): run the whole

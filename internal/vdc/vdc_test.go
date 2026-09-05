@@ -3,7 +3,7 @@ package vdc
 import (
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake/internal/vce"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/vce"
 )
 
 type fakeIRQ struct{ asserted bool }

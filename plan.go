@@ -1,6 +1,6 @@
 package onepce
 
-import "github.com/wicanr2/onepce-ai-remake/internal/machine"
+import "github.com/wicanr2/onepce-ai-pacifista/internal/machine"
 
 // ButtonByName maps the names used by the oracle probes and the CLI
 // (i, ii, select, run, up, right, down, left) to button bits.

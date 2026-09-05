@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/wicanr2/onepce-ai-remake"
+	"github.com/wicanr2/onepce-ai-pacifista"
 )
 
 // A ROM that maps RAM, enables nothing and loops: enough for frames to pass.

@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wicanr2/onepce-ai-remake"
-	"github.com/wicanr2/onepce-ai-remake/internal/psg"
-	"github.com/wicanr2/onepce-ai-remake/internal/rpc"
+	"github.com/wicanr2/onepce-ai-pacifista"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/psg"
+	"github.com/wicanr2/onepce-ai-pacifista/internal/rpc"
 )
 
 func main() {
