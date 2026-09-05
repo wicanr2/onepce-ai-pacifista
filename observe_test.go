@@ -132,6 +132,38 @@ func TestSnapshotSectionsAndDiff(t *testing.T) {
 	}
 }
 
+func TestHoldPinsRAMAgainstTheProgramsWrites(t *testing.T) {
+	m := loadProbe(t)
+	var seen []uint8
+	m.Watch(Write, CPU, 0x2010, 0x2010, func(e Event) { seen = append(seen, uint8(e.Value)) })
+	if m.Hold(0x2010, 0x77) {
+		t.Fatal("before the probe maps RAM, $2010 is not RAM and the hold must be refused")
+	}
+	run(m, 4) // LDA/TAM ×2: RAM is mapped now
+	if !m.Hold(0x2010, 0x77) {
+		t.Fatal("hold refused work RAM")
+	}
+	run(m, 8) // the probe writes $42 to $2010 in here
+	if len(seen) != 1 || seen[0] != 0x42 {
+		t.Fatalf("the watch must still see the program's write: %v", seen)
+	}
+	if m.Peek(0x2010) != 0x77 {
+		t.Fatalf("$2010 = %02X, the hold did not stick", m.Peek(0x2010))
+	}
+	m.Unhold(0x2010)
+	m2 := loadProbe(t)
+	run(m2, 4)
+	m2.Hold(0x2010, 0x77)
+	m2.Unhold(0x2010)
+	run(m2, 8)
+	if m2.Peek(0x2010) != 0x42 {
+		t.Fatalf("after unhold the write must land: %02X", m2.Peek(0x2010))
+	}
+	if m.Hold(0x0000, 1) {
+		t.Fatal("holding the I/O page must be refused")
+	}
+}
+
 func TestPokeWritesRAMWithoutSideEffects(t *testing.T) {
 	m := loadProbe(t)
 	run(m, 12) // maps RAM and writes $42 to $2010

@@ -22,7 +22,8 @@ CPU 空間與 VRAM 空間）、事件配額與略過計數、忽略清單、trac
 | O7 | 區段快照：`RAM`（8 KB）、`VRAM`（32K word）、`SAT`（256 word）、`VCE`（512 word）、`VDCRegs`、`CPU`（含 MPR）、`Timer`、`IO`；每段附 SHA-256；快照另帶 ROM SHA-256、模擬器版本、frame、輸入腳本（R5／R12） | 決定 |
 | O8 | framebuffer：VDC 當前顯示區的原生像素（`(HDW+1)·8 × (VDW+1)`），9-bit VCE 色與展開後的 RGBA 兩種；不做 4:3 縮放 | 決定（R8） |
 | O10 | `Poke(logical, value)`：經目前 MPR 寫一個 work RAM byte，不走時鐘、不觸發 watch、不碰 I/O；非 RAM 回 false。用途是實驗手段（例如把原版的骰值覆寫位元組釘住），**不是**正常玩家路徑的證據；RPC 同名方法 | 決定 |
-| O9 | 鉤子在機器內部是同步呼叫；鉤子裡不得再驅動機器 | 決定 |
+| O11 | `Hold(logical, value)`：把一個 work RAM byte **釘住**——現在寫成 value，之後程式每次寫到它，寫入事件照常給 watch（看得到程式想寫什麼），但 RAM 立刻恢復成 value；`Unhold` 解除。非 RAM 回 false。用途同 O10，多了「程式自己會改回去」的位址（例如亂數器的覆寫槽、每幀遞增的計數器）；CLI `-hold addr=val,…`、RPC `hold`／`unhold` | 決定 |
+| O9 | 鉤子在機器內部是同步呼叫；鉤子裡不得再驅動機器（`RunFrames`／`Step`）；`Poke`／`Hold` 可以，exec watch 裡的 `Poke` 在該指令執行前生效 | 決定 |
 
 ## 介面（根套件 `onepce`）
 
@@ -42,6 +43,8 @@ func (w *Watch) Limit(n int) *Watch; IgnorePC(pcs ...uint16) *Watch
 func (w *Watch) Count() int; Skipped() int; Ignored() int; Remove()
 func (m *Machine) Trace(fn func(Snapshot)) func()     // 回傳解除函式
 func (m *Machine) Snapshot(sections ...Section) *Snapshot
+func (m *Machine) Poke(logical uint16, value uint8) bool
+func (m *Machine) Hold(logical uint16, value uint8) bool; Unhold(logical uint16)
 func (m *Machine) Framebuffer() *image.RGBA
 func (m *Machine) FramebufferNative() (w, h int, px []uint16)
 ```
@@ -52,7 +55,7 @@ func (m *Machine) FramebufferNative() (w, h int, px []uint16)
 ## 驗收
 
 - 單元：區間邊界（lo／hi 皆含）、配額用完後 `Skipped` 遞增、忽略清單不計入略過、exec 事件的 PC
-  是指令起點、`vram` 寫入事件的 `Source` 對 CPU 寫入／VRAM DMA／SATB 各一條、trace hash 對同一
+  是指令起點、`Hold` 之後程式的寫入被 watch 看到但 RAM 值不變、`Unhold` 後寫入落地、`vram` 寫入事件的 `Source` 對 CPU 寫入／VRAM DMA／SATB 各一條、trace hash 對同一
   段程式兩次執行相同。
 - 對 oracle（`nectaris-cht` `re/203`）：標題 → 戰術 → 選單位 → 「移動」，在移動範圍顯示的那個
   frame 監看 VRAM 寫入；被改寫的圖塊 word 的寫入端 PC 全落在 `$A1F5` 的外框繪製副程式範圍內

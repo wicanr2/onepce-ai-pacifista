@@ -138,6 +138,14 @@ func (pm *Machine) Resolve(logical uint16) Address { return pm.m.Bus.Resolve(log
 // experiments such as fixing a game's dice (docs/spec/observe.md O10).
 func (pm *Machine) Poke(logical uint16, value uint8) bool { return pm.m.Bus.Poke(logical, value) }
 
+// Hold pins one work RAM byte to value: written now, and restored after every
+// CPU write to it while the hold stands (docs/spec/observe.md O11). Watches
+// still report the program's attempted writes. False means not RAM.
+func (pm *Machine) Hold(logical uint16, value uint8) bool { return pm.m.Bus.Hold(logical, value) }
+
+// Unhold releases a Hold.
+func (pm *Machine) Unhold(logical uint16) { pm.m.Bus.Unhold(logical) }
+
 // Peek reads CPU space without side effects.
 func (pm *Machine) Peek(logical uint16) uint8 { return pm.m.Bus.Peek(logical) }
 

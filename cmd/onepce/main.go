@@ -77,6 +77,7 @@ func runCommand(args []string) error {
 	shot := fs.String("screenshot", "", "PNG of the display window at the end")
 	snapDir := fs.String("snapshot-dir", "", "directory for snapshot.json + section bins")
 	ignore := fs.String("ignore-pc", "", "instruction-start PCs to ignore in watches (hex, comma separated)")
+	hold := fs.String("hold", "", "pin work RAM bytes for the whole run: addr=val,… (hex)")
 	traceHash := fs.Bool("trace-hash", false, "print the PC+opcode structure hash of the run")
 	wavPath := fs.String("wav", "", "render the PSG output of the run to this WAV file")
 	audioRate := fs.Int("audio-rate", 44100, "sample rate for -wav")
@@ -108,6 +109,27 @@ func runCommand(args []string) error {
 		return err
 	}
 	m.Schedule(presses...)
+	for _, h := range strings.Split(*hold, ",") {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		kv := strings.SplitN(h, "=", 2)
+		if len(kv) != 2 {
+			return fmt.Errorf("-hold %q: want addr=val", h)
+		}
+		a, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(kv[0]), "0x"), "$"), 16, 16)
+		if err != nil {
+			return fmt.Errorf("-hold %q: addr: %w", h, err)
+		}
+		v, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(kv[1]), "0x"), "$"), 16, 8)
+		if err != nil {
+			return fmt.Errorf("-hold %q: val: %w", h, err)
+		}
+		if !m.Hold(uint16(a), uint8(v)) {
+			return fmt.Errorf("-hold %q: $%04X is not work RAM", h, a)
+		}
+	}
 
 	var ignorePCs []uint16
 	for _, h := range strings.Split(*ignore, ",") {

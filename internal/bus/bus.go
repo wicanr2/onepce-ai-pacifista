@@ -62,6 +62,9 @@ type Bus struct {
 	// (docs/spec/observe.md O2) and must not touch the bus.
 	OnRead  func(logical uint16, value uint8)
 	OnWrite func(logical uint16, value uint8)
+	// holds pins RAM bytes (by offset) to a value: the program's writes are
+	// observed and then undone (spec observe.md O11).
+	holds map[uint16]uint8
 }
 
 // New maps a HuCard image. The image must be a whole number of 8 KiB banks.
@@ -197,6 +200,24 @@ func (b *Bus) Poke(logical uint16, value uint8) bool {
 	return false
 }
 
+// Hold pins one work RAM byte: it is written now and restored after every
+// CPU write to it, so the program's own updates never stick (spec observe.md
+// O11). Watches still see what the program tried to write.
+func (b *Bus) Hold(logical uint16, value uint8) bool {
+	if !b.Poke(logical, value) {
+		return false
+	}
+	if b.holds == nil {
+		b.holds = map[uint16]uint8{}
+	}
+	b.holds[logical&0x1FFF] = value
+	return true
+}
+
+// Unhold releases a pin; the byte keeps the pinned value until the program
+// writes it again.
+func (b *Bus) Unhold(logical uint16) { delete(b.holds, logical&0x1FFF) }
+
 // Idle is one CPU cycle with no bus access.
 func (b *Bus) Idle() { b.cpuCycle() }
 
@@ -233,6 +254,11 @@ func (b *Bus) Write(logical uint16, value uint8) {
 	switch {
 	case bank >= ramBank && bank <= ramBank+3:
 		b.RAM[off] = value
+		if len(b.holds) != 0 {
+			if held, ok := b.holds[off]; ok {
+				b.RAM[off] = held
+			}
+		}
 	case bank == ioBank:
 		b.writeIO(off, value)
 	}

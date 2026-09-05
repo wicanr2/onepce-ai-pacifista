@@ -10,6 +10,11 @@
 
 ## 本輪已完成（2026-09-04／05）
 
+- `Hold`／`Unhold`（`docs/spec/observe.md` O11）：bus 在每次 CPU 寫入後把釘住的 byte 恢復，
+  watch 仍看到程式想寫的值；`Machine.Hold`、CLI `run -hold addr=val,…`、RPC `hold`／`unhold`。
+  nectaris 端 `oracle/onepce/dice_test.go` 用它把原版亂數器的覆寫槽 `$2E21` 釘成腳本，
+  三個電腦回合 10 顆傷害骰全部照腳本順序讀到（其 P-193）。
+
 - M0：gate、公開樹測試、位址模型。
 - M1：`docs/spec/huc6280.md`、`hucard-mapper.md` → `internal/huc6280`（256 opcode 表、
   逐存取計時、T flag、block transfer、TAM/TMA、逐週期中斷取樣）、`internal/bus`。

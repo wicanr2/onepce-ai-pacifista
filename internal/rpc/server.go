@@ -210,6 +210,26 @@ func (s *Server) dispatch(method string, params json.RawMessage) (any, *codedErr
 		}
 		return map[string]any{"frame": s.frame(), "written": s.m.Poke(p.Addr, p.Value)}, nil
 
+	case "hold":
+		var p struct {
+			Addr  uint16 `json:"addr"`
+			Value uint8  `json:"value"`
+		}
+		if e := decode(&p); e != nil {
+			return nil, e
+		}
+		return map[string]any{"frame": s.frame(), "held": s.m.Hold(p.Addr, p.Value)}, nil
+
+	case "unhold":
+		var p struct {
+			Addr uint16 `json:"addr"`
+		}
+		if e := decode(&p); e != nil {
+			return nil, e
+		}
+		s.m.Unhold(p.Addr)
+		return map[string]any{"frame": s.frame()}, nil
+
 	case "resolve":
 		var p struct {
 			Addr uint16 `json:"addr"`
