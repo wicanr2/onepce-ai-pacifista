@@ -131,3 +131,16 @@ func TestSnapshotSectionsAndDiff(t *testing.T) {
 		t.Fatal("snapshot provenance missing")
 	}
 }
+
+func TestPokeWritesRAMWithoutSideEffects(t *testing.T) {
+	m := loadProbe(t)
+	run(m, 12) // maps RAM and writes $42 to $2010
+	hits := 0
+	m.Watch(Write, CPU, 0x2011, 0x2011, func(Event) { hits++ })
+	if !m.Poke(0x2011, 0x99) || m.Peek(0x2011) != 0x99 || hits != 0 {
+		t.Fatalf("poke: value %02X hits %d", m.Peek(0x2011), hits)
+	}
+	if m.Poke(0x0000, 1) {
+		t.Fatal("poking the I/O page must be refused")
+	}
+}

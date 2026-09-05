@@ -133,6 +133,11 @@ func (pm *Machine) MPR() MPR { return pm.m.Bus.MPR() }
 // Resolve maps a logical address through the current paging state and mapper.
 func (pm *Machine) Resolve(logical uint16) Address { return pm.m.Bus.Resolve(logical) }
 
+// Poke writes one byte of work RAM (through the current MPRs) with no bus
+// side effects; false means the address is not RAM. It exists for pinning
+// experiments such as fixing a game's dice (docs/spec/observe.md O10).
+func (pm *Machine) Poke(logical uint16, value uint8) bool { return pm.m.Bus.Poke(logical, value) }
+
 // Peek reads CPU space without side effects.
 func (pm *Machine) Peek(logical uint16) uint8 { return pm.m.Bus.Peek(logical) }
 

@@ -200,6 +200,16 @@ func (s *Server) dispatch(method string, params json.RawMessage) (any, *codedErr
 		}
 		return map[string]any{"frame": s.frame(), "bytes": hex.EncodeToString(buf)}, nil
 
+	case "poke":
+		var p struct {
+			Addr  uint16 `json:"addr"`
+			Value uint8  `json:"value"`
+		}
+		if e := decode(&p); e != nil {
+			return nil, e
+		}
+		return map[string]any{"frame": s.frame(), "written": s.m.Poke(p.Addr, p.Value)}, nil
+
 	case "resolve":
 		var p struct {
 			Addr uint16 `json:"addr"`

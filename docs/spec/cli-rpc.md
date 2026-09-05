@@ -36,6 +36,7 @@ onepce version
 | `step` | `{n}` | `{frame, pc, cycles}` |
 | `registers` | — | `{pc,a,x,y,s,p,cycles,mpr:[…]}` |
 | `peek` | `{addr, len}` | `{bytes: hex}` |
+| `poke` | `{addr, value}` | `{written: bool}`（observe.md O10；只寫 work RAM） |
 | `resolve` | `{addr}` | `{logical, physical, file, mpr, text}` |
 | `snapshot` | `{sections:[…]}` | `{frame, hashes:{…}, sections:{name: base64}}` |
 | `watch` | `{kind, space, lo, hi, limit, ignore_pc:[…]}` | `{id}` |

@@ -185,6 +185,18 @@ func (b *Bus) cpuCycle() {
 	}
 }
 
+// Poke writes work RAM through the paging registers without clocking
+// anything or touching I/O: an experiment's hand on the machine (spec
+// observe.md O10). Only RAM banks accept it; the result says whether it landed.
+func (b *Bus) Poke(logical uint16, value uint8) bool {
+	bank := b.mpr.Bank(logical)
+	if bank >= ramBank && bank <= ramBank+3 {
+		b.RAM[logical&0x1FFF] = value
+		return true
+	}
+	return false
+}
+
 // Idle is one CPU cycle with no bus access.
 func (b *Bus) Idle() { b.cpuCycle() }
 

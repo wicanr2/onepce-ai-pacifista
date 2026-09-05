@@ -21,6 +21,7 @@ CPU 空間與 VRAM 空間）、事件配額與略過計數、忽略清單、trac
 | O6 | trace 鉤子每條指令呼叫一次，給 `Snapshot`（CPU 暫存器＋MPR）；`TraceHash` 累積「PC＋opcode」的 SHA-256，供結構比對（R10） | 決定 |
 | O7 | 區段快照：`RAM`（8 KB）、`VRAM`（32K word）、`SAT`（256 word）、`VCE`（512 word）、`VDCRegs`、`CPU`（含 MPR）、`Timer`、`IO`；每段附 SHA-256；快照另帶 ROM SHA-256、模擬器版本、frame、輸入腳本（R5／R12） | 決定 |
 | O8 | framebuffer：VDC 當前顯示區的原生像素（`(HDW+1)·8 × (VDW+1)`），9-bit VCE 色與展開後的 RGBA 兩種；不做 4:3 縮放 | 決定（R8） |
+| O10 | `Poke(logical, value)`：經目前 MPR 寫一個 work RAM byte，不走時鐘、不觸發 watch、不碰 I/O；非 RAM 回 false。用途是實驗手段（例如把原版的骰值覆寫位元組釘住），**不是**正常玩家路徑的證據；RPC 同名方法 | 決定 |
 | O9 | 鉤子在機器內部是同步呼叫；鉤子裡不得再驅動機器 | 決定 |
 
 ## 介面（根套件 `onepce`）
