@@ -13,7 +13,7 @@ CPU 空間與 VRAM 空間）、事件配額與略過計數、忽略清單、trac
 
 | # | 規則 | 等級 |
 |---|---|---|
-| O1 | 每個事件帶：種類、**指令起點 PC**（不是命中當下的 PC）、opcode、位址（三空間＋MPR，`address-model.md`）、值、frame、scanline、hclock、CPU 週期數、A/X/Y/S/P | 決定（R1／R2） |
+| O1 | 每個事件帶：種類、**指令起點 PC**（不是命中當下的 PC）、opcode、位址（三空間＋MPR，`address-model.md`）、值、frame、scanline、hclock、CPU 週期數、A/X/Y/S/P，以及 `Code`——**指令起點本身**的三空間位址（讀寫事件的 `Addr` 是資料位址，`Code` 才回答「這條指令在哪個 bank」；exec 事件兩者相同） | 決定（R1／R2） |
 | O2 | watch 以區間 `[lo, hi]` 設定；空間有 `cpu`（logical）與 `vram`（word 位址）兩種。`vram` 寫入事件的來源標成 `cpu`／`dma`／`satb`，所以 VDC 自己搬的資料也看得到 | 決定（R6） |
 | O3 | 每個 watch 有事件上限（預設 10,000）；超過時**不記錄但計數**，`Skipped()` 回報；呼叫端沒看到略過數不得下「沒有發生」的結論 | 決定（R3） |
 | O4 | 忽略清單：以指令起點 PC 為鍵（logical），命中時不記錄也不計入略過（另計 `Ignored()`） | 決定（R4） |
@@ -23,7 +23,9 @@ CPU 空間與 VRAM 空間）、事件配額與略過計數、忽略清單、trac
 | O8 | framebuffer：VDC 當前顯示區的原生像素（`(HDW+1)·8 × (VDW+1)`），9-bit VCE 色與展開後的 RGBA 兩種；不做 4:3 縮放 | 決定（R8） |
 | O10 | `Poke(logical, value)`：經目前 MPR 寫一個 work RAM byte，不走時鐘、不觸發 watch、不碰 I/O；非 RAM 回 false。用途是實驗手段（例如把原版的骰值覆寫位元組釘住），**不是**正常玩家路徑的證據；RPC 同名方法 | 決定 |
 | O11 | `Hold(logical, value)`：把一個 work RAM byte **釘住**——現在寫成 value，之後程式每次寫到它，寫入事件照常給 watch（看得到程式想寫什麼），但 RAM 立刻恢復成 value；`Unhold` 解除。非 RAM 回 false。用途同 O10，多了「程式自己會改回去」的位址（例如亂數器的覆寫槽、每幀遞增的計數器）；CLI `-hold addr=val,…`、RPC `hold`／`unhold` | 決定 |
-| O9 | 鉤子在機器內部是同步呼叫；鉤子裡不得再驅動機器（`RunFrames`／`Step`）；`Poke`／`Hold` 可以，exec watch 裡的 `Poke` 在該指令執行前生效 | 決定 |
+| O9 | 鉤子在機器內部是同步呼叫；鉤子裡不得再驅動機器（`RunFrames`／`Step`）；`Poke`／`Hold`／`Callers` 可以，exec watch 裡的 `Poke` 在該指令執行前生效 | 決定 |
+| O12 | **程式碼位置過濾**：`Watch.InFile(lo, hi)`／`InBank(b)` 只交付指令起點落在該 ROM file 區間（bank b = `[b·$2000, b·$2000+$1FFF]`）的命中；其餘計入 `Ignored()`，不佔 `Limit`。同一個邏輯位址在不同 MPR 下是不同 bank 的碼，沒有這層過濾，exec watch 會在動畫、腳本 VM 等別的 bank 上誤觸發；CLI `-watch … @bN`／`@lo-hi`，RPC `watch` 的 `bank`／`file_lo`／`file_hi` | 決定 |
+| O13 | **呼叫者**：`Callers(max)` 讀堆疊頁（`$2100 + S + 1` 起）找回傳位址：每兩個 byte 組成 little-endian 值加 1 為候選，只有前面正好是 `JSR abs`（`$20`，三 byte）或 `BSR`（`$44`，兩 byte）的才列入，並附呼叫端指令的三空間位址與種類。這是啟發式：資料 byte 恰好湊成合法呼叫會被誤列、`RTI` 框架與 `PHA` 的資料不會被辨識；用途是「這支常式從哪裡被叫」的快速定位，不是可靠的堆疊回溯。RPC `callers` | 決定 |
 
 ## 介面（根套件 `onepce`）
 
@@ -40,7 +42,10 @@ type Event struct {
 type Watch struct { ... }  // 由 Machine.Watch 建立
 func (m *Machine) Watch(kind Kind, space Space, lo, hi uint32, fn func(Event)) *Watch
 func (w *Watch) Limit(n int) *Watch; IgnorePC(pcs ...uint16) *Watch
+func (w *Watch) InFile(lo, hi int64) *Watch; InBank(bank int) *Watch   // O12
 func (w *Watch) Count() int; Skipped() int; Ignored() int; Remove()
+type Caller struct { Stack uint16; Return uint16; Call Address; Kind string }  // O13
+func (m *Machine) Callers(max int) []Caller
 func (m *Machine) Trace(fn func(Snapshot)) func()     // 回傳解除函式
 func (m *Machine) Snapshot(sections ...Section) *Snapshot
 func (m *Machine) Poke(logical uint16, value uint8) bool

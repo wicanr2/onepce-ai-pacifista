@@ -218,6 +218,13 @@ func (b *Bus) Hold(logical uint16, value uint8) bool {
 // writes it again.
 func (b *Bus) Unhold(logical uint16) { delete(b.holds, logical&0x1FFF) }
 
+// ReapplyHolds writes every held value back into RAM (after a state restore).
+func (b *Bus) ReapplyHolds() {
+	for off, v := range b.holds {
+		b.RAM[off] = v
+	}
+}
+
 // Idle is one CPU cycle with no bus access.
 func (b *Bus) Idle() { b.cpuCycle() }
 

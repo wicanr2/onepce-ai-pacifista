@@ -176,3 +176,67 @@ func TestPokeWritesRAMWithoutSideEffects(t *testing.T) {
 		t.Fatal("poking the I/O page must be refused")
 	}
 }
+
+// O12: the same logical address is a different routine under a different MPR,
+// so a watch can be pinned to the bank (file range) the code lives in.
+func TestExecWatchFiltersByCodeLocation(t *testing.T) {
+	m := loadProbe(t)
+	inside, outside := 0, 0
+	// $E00C is file offset $0C; the filter admits only that byte.
+	m.Watch(Exec, CPU, 0xE000, 0xE01F, func(e Event) {
+		if e.Code.File != 0x0C {
+			outside++
+		}
+		inside++
+	}).InFile(0x0C, 0x0C)
+	w := m.Watch(Exec, CPU, 0xE000, 0xE01F, func(Event) {}).InBank(1)
+	run(m, 12)
+	if inside != 1 || outside != 0 {
+		t.Fatalf("filtered watch delivered %d events (%d off the range)", inside, outside)
+	}
+	if w.Count() != 0 || w.Ignored() == 0 {
+		t.Fatalf("bank-1 watch: count %d ignored %d, want nothing delivered and the hits ignored", w.Count(), w.Ignored())
+	}
+	// O1: a write event's Code is the instruction, its Addr the data.
+	var ev Event
+	m2 := loadProbe(t)
+	m2.Watch(Write, CPU, 0x2000, 0x20FF, func(e Event) { ev = e })
+	run(m2, 8)
+	if ev.Code.Logical != 0xE00A || ev.Code.File != 0x0A || ev.Addr.Logical != 0x2010 {
+		t.Fatalf("event code %s addr %s", ev.Code, ev.Addr)
+	}
+}
+
+// O13: a nested JSR/BSR chain shows up on the stack, innermost first.
+func TestCallersFindsTheJSRAndBSRFrames(t *testing.T) {
+	// $E000: LDA #$F8 ; TAM #2 ; JSR $E009 ; BRA *
+	// $E009: BSR $E00D   (two bytes: $44, rel)
+	// $E00B: BRA *
+	// $E00D: BRA *       (the innermost routine idles here)
+	code := []uint8{
+		0xA9, 0xF8, 0x53, 0x02, // $E000
+		0x20, 0x09, 0xE0, // $E004 JSR $E009
+		0x80, 0xFE, // $E007 BRA *
+		0x44, 0x02, // $E009 BSR +2 → $E00D
+		0x80, 0xFE, // $E00B BRA *
+		0x80, 0xFE, // $E00D BRA *
+	}
+	m, err := Load(testROM(code...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run(m, 5)
+	if pc := m.Registers().PC; pc != 0xE00D {
+		t.Fatalf("PC %04X, want the innermost loop at $E00D", pc)
+	}
+	callers := m.Callers(8)
+	if len(callers) != 2 {
+		t.Fatalf("callers %+v, want two frames", callers)
+	}
+	if callers[0].Kind != "bsr" || callers[0].Return != 0xE00B || callers[0].Call.Logical != 0xE009 {
+		t.Errorf("inner frame %+v, want the BSR at $E009 returning to $E00B", callers[0])
+	}
+	if callers[1].Kind != "jsr" || callers[1].Return != 0xE007 || callers[1].Call.Logical != 0xE004 {
+		t.Errorf("outer frame %+v, want the JSR at $E004 returning to $E007", callers[1])
+	}
+}

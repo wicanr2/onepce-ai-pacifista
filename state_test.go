@@ -82,3 +82,22 @@ func TestLoadStateRejectsOtherROMsAndFormats(t *testing.T) {
 		t.Fatal("a different format version must be refused")
 	}
 }
+
+// S7: a hold is not part of the state, but it re-pins the RAM a load brings back.
+func TestHoldsRepinTheRAMAfterLoadState(t *testing.T) {
+	m := loadProbe(t)
+	run(m, 8) // the program has written $42 to $2010
+	var buf bytes.Buffer
+	if err := m.SaveState(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Hold(0x2010, 0x11) {
+		t.Fatal("hold refused")
+	}
+	if err := m.LoadState(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Peek(0x2010); got != 0x11 {
+		t.Fatalf("after load $2010 = %02X, want the held $11 (the state held $42)", got)
+	}
+}

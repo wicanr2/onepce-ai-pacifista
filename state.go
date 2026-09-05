@@ -64,6 +64,9 @@ func (pm *Machine) LoadState(r io.Reader) error {
 		return fmt.Errorf("savestate: body: %w", err)
 	}
 	pm.m.Restore(s)
+	// S7: holds are experiment state, not machine state, so they survive the
+	// load and re-pin the restored RAM straight away.
+	pm.m.Bus.ReapplyHolds()
 	pm.plan = append([]Press(nil), head.Plan...)
 	return nil
 }

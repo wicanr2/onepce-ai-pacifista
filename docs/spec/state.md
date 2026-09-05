@@ -18,6 +18,7 @@
 | S4 | 區段：`cpu`（暫存器、週期數、中斷取樣）、`bus`（MPR、速度、IRQ 遮罩／線、I/O buffer、主時脈、timer）、`ram`、`vdc`（暫存器、VRAM、SAT、所有時序與 latch 狀態、DMA 狀態、framebuffer 尺寸）、`vce`（色盤、位址、控制）、`pad`、`machine`（輸入腳本與釋放時點、lastMaster） | 決定 |
 | S5 | 決定性驗收：存檔 → 讀檔 → 跑 N frame 的快照，與不存檔連續跑 N frame 的快照逐 byte 相同 | 決定 |
 | S6 | 各元件以匯出的 `State` 結構表示自己的狀態（`Save() State`／`Restore(State)`），編碼用 `encoding/gob`；結構欄位增減即版本升級 | 決定 |
+| S7 | `Hold`（observe.md O11）是實驗手段不是機器狀態：不進存檔；`LoadState` 之後仍在的 hold 會立刻把讀回的 RAM 重新釘成釘住的值。這樣「存一個狀態、之後反覆讀回來跑」時釘住的骰值不會因讀檔而鬆掉 | 決定 |
 
 ## 驗收
 

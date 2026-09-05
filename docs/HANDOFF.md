@@ -10,6 +10,13 @@
 
 ## 本輪已完成（2026-09-04／05）
 
+- 觀測層三件（W11）：事件多帶 `Code`（指令起點的三空間位址）、`Watch.InFile`／`InBank` 程式碼位置過濾
+  （`observe.md` O12）、`Callers(max)`（O13，JSR／BSR 回傳位址啟發式，堆疊頁回繞已處理）、
+  `LoadState` 後既有 hold 重釘 RAM（`state.md` S7）。CLI `-watch kind:space:lo-hi[:limit][@bN|@lo-hi]`、
+  TSV 末欄 `code`；RPC `watch` 收 `bank`／`file_lo`／`file_hi`、新增 `callers`。
+  來源：nectaris 追 stage 6 AI 分歧時，exec watch 在戰鬥動畫的 bank 6 同位址誤觸發、
+  找 `$D2B5`／`$CE87` 的呼叫者要手撈堆疊、每次 trace 要從標題跑兩三分鐘。
+
 - `Hold`／`Unhold`（`docs/spec/observe.md` O11）：bus 在每次 CPU 寫入後把釘住的 byte 恢復，
   watch 仍看到程式想寫的值；`Machine.Hold`、CLI `run -hold addr=val,…`、RPC `hold`／`unhold`。
   nectaris 端 `oracle/onepce/dice_test.go` 用它把原版亂數器的覆寫槽 `$2E21` 釘成腳本，

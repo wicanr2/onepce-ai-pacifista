@@ -151,20 +151,27 @@ func runCommand(args []string) error {
 	var recs []recorded
 	out := os.Stdout
 	if len(watches) > 0 {
-		fmt.Fprintln(out, "kind\tspace\tsource\tframe\tscanline\thclock\tpc\topcode\taddr\tvalue\ta\tx\ty\ts\tp")
+		fmt.Fprintln(out, "kind\tspace\tsource\tframe\tscanline\thclock\tpc\topcode\taddr\tvalue\ta\tx\ty\ts\tp\tcode")
 	}
 	for _, spec := range watches {
-		kind, space, lo, hi, limit, err := parseWatch(spec)
+		kind, space, lo, hi, limit, fileLo, fileHi, err := parseWatch(spec)
 		if err != nil {
 			return err
 		}
 		w := m.Watch(kind, space, lo, hi, func(e onepce.Event) {
-			fmt.Fprintf(out, "%s\t%s\t%s\t%d\t%d\t%d\t%04X\t%02X\t%s\t%04X\t%02X\t%02X\t%02X\t%02X\t%02X\n",
+			code := "?"
+			if e.Code.File != onepce.FileUnknown {
+				code = fmt.Sprintf("%05X", e.Code.File)
+			}
+			fmt.Fprintf(out, "%s\t%s\t%s\t%d\t%d\t%d\t%04X\t%02X\t%s\t%04X\t%02X\t%02X\t%02X\t%02X\t%02X\t%s\n",
 				kindName(e.Kind), spaceName(e.Space), sourceName(e.Source), e.Frame, e.Scanline, e.HClock,
-				e.PC, e.Opcode, e.Addr, e.Value, e.A, e.X, e.Y, e.S, e.P)
+				e.PC, e.Opcode, e.Addr, e.Value, e.A, e.X, e.Y, e.S, e.P, code)
 		})
 		if limit > 0 {
 			w.Limit(limit)
+		}
+		if fileHi >= fileLo {
+			w.InFile(fileLo, fileHi)
 		}
 		if len(ignorePCs) > 0 {
 			w.IgnorePC(ignorePCs...)
@@ -284,7 +291,41 @@ func writeSnapshot(m *onepce.Machine, dir string) error {
 	return nil
 }
 
-func parseWatch(spec string) (onepce.Kind, onepce.Space, uint32, uint32, int, error) {
+// parseWatch reads kind:space:lo-hi[:limit][@bN|@lo-hi]. The file range is
+// returned with hi < lo when the spec carries no code-location filter.
+func parseWatch(spec string) (onepce.Kind, onepce.Space, uint32, uint32, int, int64, int64, error) {
+	fileLo, fileHi := int64(1), int64(0)
+	if at := strings.LastIndex(spec, "@"); at >= 0 {
+		where := spec[at+1:]
+		spec = spec[:at]
+		switch {
+		case strings.HasPrefix(where, "b"):
+			bank, err := strconv.Atoi(where[1:])
+			if err != nil {
+				return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("-watch %q: bank: %w", spec, err)
+			}
+			fileLo, fileHi = int64(bank)*0x2000, int64(bank)*0x2000+0x1FFF
+		default:
+			rng := strings.SplitN(where, "-", 2)
+			if len(rng) != 2 {
+				return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("-watch %q: want @bN or @lo-hi", spec)
+			}
+			lo, err := strconv.ParseInt(strings.TrimPrefix(rng[0], "$"), 16, 64)
+			if err != nil {
+				return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("-watch %q: file lo: %w", spec, err)
+			}
+			hi, err := strconv.ParseInt(strings.TrimPrefix(rng[1], "$"), 16, 64)
+			if err != nil {
+				return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("-watch %q: file hi: %w", spec, err)
+			}
+			fileLo, fileHi = lo, hi
+		}
+	}
+	kind, space, lo, hi, limit, err := parseWatchCore(spec)
+	return kind, space, lo, hi, limit, fileLo, fileHi, err
+}
+
+func parseWatchCore(spec string) (onepce.Kind, onepce.Space, uint32, uint32, int, error) {
 	parts := strings.Split(spec, ":")
 	if len(parts) < 3 || len(parts) > 4 {
 		return 0, 0, 0, 0, 0, fmt.Errorf("-watch %q: want kind:space:lo-hi[:limit]", spec)

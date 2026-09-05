@@ -15,12 +15,15 @@ JSON-RPC 做互動式 watch／step／dump）、使用者裁定（Go library＋CL
 onepce run   -rom X [-press "f:btn:span,…"] [-to-frame N] [-load in.state] [-save out.state]
              [-screenshot out.png] [-snapshot-dir DIR] [-watch "kind:space:lo-hi[:limit]"]…
              [-ignore-pc "a,b,…"] [-hold "addr=val,…"] [-trace-hash] [-wav out.wav] [-audio-rate 44100] [-vgm start-stop -vgm-out out.vgm]
+
+`-watch` 的區間後可接 `@bN`（只收 bank N 的碼）或 `@lo-hi`（ROM file 區間，hex），observe.md O12。
+事件 TSV 最後多一欄 `code`：指令起點的 ROM file 偏移（RAM 裡跑的碼印 `?`）。
 onepce rpc   -rom X            JSON-RPC 2.0，每行一個請求／回應（stdin／stdout）
 onepce version
 ```
 
 `run` 的順序：載入（或 `-load`）→ 排程 `-press` → 掛 `-watch` → 跑到 `-to-frame`（預設不跑）
-→ 依序輸出：watch 事件（TSV 到 stdout：`kind space source frame scanline hclock pc opcode addr value a x y s p`）、
+→ 依序輸出：watch 事件（TSV 到 stdout：`kind space source frame scanline hclock pc opcode addr value a x y s p code`）、
 每個 watch 的 `count/skipped/ignored` 摘要（stderr）、`-trace-hash`、`-screenshot`（PNG，原生解析度）、
 `-snapshot-dir`（`snapshot.json` 頭＋`ram.bin`／`vram.bin`／`sat.bin`／`palette.bin`）、`-save`。
 `kind` ∈ `read|write|exec`，`space` ∈ `cpu|vram`，位址十六進位。
@@ -40,7 +43,8 @@ onepce version
 | `hold` / `unhold` | `{addr, value}` / `{addr}` | `{held: bool}` / `{}`（observe.md O11：釘住一個 work RAM byte） |
 | `resolve` | `{addr}` | `{logical, physical, file, mpr, text}` |
 | `snapshot` | `{sections:[…]}` | `{frame, hashes:{…}, sections:{name: base64}}` |
-| `watch` | `{kind, space, lo, hi, limit, ignore_pc:[…]}` | `{id}` |
+| `watch` | `{kind, space, lo, hi, limit, ignore_pc:[…], bank, file_lo, file_hi}`（後三個是 observe.md O12 的程式碼位置過濾；`bank` 優先） | `{id}` |
+| `callers` | `{max}` | `{callers:[{stack, return, call:{logical, physical, file}, kind}]}`（observe.md O13） |
 | `events` | `{id, max}` | `{events:[…], count, skipped, ignored, remaining}` |
 | `unwatch` | `{id}` | `{}` |
 | `screenshot` | `{path}` | `{width, height}` |

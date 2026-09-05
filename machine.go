@@ -72,6 +72,10 @@ type Event struct {
 	HClock        int
 	Cycles        uint64
 	A, X, Y, S, P uint8
+	// Code is the instruction start resolved through the paging state at the
+	// time (O1): the bank the code ran in, which Addr does not say for a read
+	// or write. For an Exec event it equals Addr.
+	Code Address
 }
 
 // Machine is the public face of one console (docs/spec/observe.md).
@@ -168,6 +172,8 @@ type Watch struct {
 	skipped  int
 	ignored  int
 	ignorePC map[uint16]bool
+	fileLo   int64 // O12: code-location filter, active when fileHi >= fileLo
+	fileHi   int64
 	removed  bool
 }
 
@@ -176,7 +182,7 @@ const defaultLimit = 10000
 // Watch registers fn for kind accesses in space within [lo, hi].
 func (pm *Machine) Watch(kind Kind, space Space, lo, hi uint32, fn func(Event)) *Watch {
 	pm.nextID++
-	w := &Watch{pm: pm, id: pm.nextID, kind: kind, space: space, lo: lo, hi: hi, fn: fn, limit: defaultLimit}
+	w := &Watch{pm: pm, id: pm.nextID, kind: kind, space: space, lo: lo, hi: hi, fn: fn, limit: defaultLimit, fileLo: 1, fileHi: 0}
 	pm.watches = append(pm.watches, w)
 	return w
 }
@@ -193,6 +199,18 @@ func (w *Watch) IgnorePC(pcs ...uint16) *Watch {
 		w.ignorePC[pc] = true
 	}
 	return w
+}
+
+// InFile keeps only hits whose instruction started inside the ROM file range
+// [lo, hi] (docs/spec/observe.md O12); the rest count as ignored. The same
+// logical address is a different routine under a different MPR, and this is
+// how an exec watch on, say, $D2B5 stops firing on whatever bank 6 keeps there
+// during a battle animation.
+func (w *Watch) InFile(lo, hi int64) *Watch { w.fileLo, w.fileHi = lo, hi; return w }
+
+// InBank is InFile for one 8 KB HuCard bank.
+func (w *Watch) InBank(bank int) *Watch {
+	return w.InFile(int64(bank)*0x2000, int64(bank)*0x2000+0x1FFF)
 }
 
 // Count / Skipped / Ignored are the bookkeeping a caller must report.
@@ -217,11 +235,16 @@ func (pm *Machine) event(kind Kind, space Space, src Source, addr Address, value
 		Kind: kind, Space: space, Source: src, PC: c.InstPC, Opcode: pm.m.Bus.Peek(c.InstPC),
 		Addr: addr, Value: value, Frame: pm.m.VDC.Frame(), Scanline: pm.m.VDC.Scanline(),
 		HClock: pm.m.VDC.HClock(), Cycles: c.Cycles, A: c.A, X: c.X, Y: c.Y, S: c.S, P: c.P,
+		Code: pm.m.Bus.Resolve(c.InstPC),
 	}
 }
 
 func (w *Watch) deliver(ev Event) {
 	if w.ignorePC != nil && w.ignorePC[ev.PC] {
+		w.ignored++
+		return
+	}
+	if w.fileHi >= w.fileLo && (ev.Code.File < w.fileLo || ev.Code.File > w.fileHi) {
 		w.ignored++
 		return
 	}
@@ -286,10 +309,46 @@ func (pm *Machine) onInstruction(snap huc6280.Snapshot) {
 			ev = pm.event(Exec, CPU, ByCPU, pm.m.Bus.Resolve(snap.PC), uint16(snap.Opcode))
 			ev.PC = snap.PC
 			ev.Opcode = snap.Opcode
+			ev.Code = ev.Addr
 			built = true
 		}
 		w.deliver(ev)
 	}
+}
+
+// --- callers (docs/spec/observe.md O13) ---
+
+// Caller is one plausible return address found on the stack.
+type Caller struct {
+	Stack  uint16  // logical address of the low byte on the stack page
+	Return uint16  // where the RTS would go (pushed value + 1)
+	Call   Address // the JSR/BSR instruction, resolved through the current MPRs
+	Kind   string  // "jsr" or "bsr"
+}
+
+// Callers scans the stack page from S+1 upward for values that look like
+// return addresses: the byte pair plus one, with a JSR abs ($20, three bytes)
+// or BSR ($44, two bytes) right in front of it. It is a heuristic (data that
+// happens to fit is listed too, RTI frames and pushed data are not decoded)
+// meant to answer "who called this routine" from inside a watch; at most max
+// entries, innermost first.
+func (pm *Machine) Callers(max int) []Caller {
+	var out []Caller
+	s := int(pm.m.CPU.S)
+	// The stack page wraps: a low byte at $21FF has its high byte at $2100.
+	for i := s + 1; i <= 0xFF && len(out) < max; i++ {
+		slot := uint16(0x2100 + i)
+		high := uint16(0x2100 + ((i + 1) & 0xFF))
+		ret := uint16(pm.Peek(slot)) | uint16(pm.Peek(high))<<8
+		ret++
+		switch {
+		case pm.Peek(ret-3) == 0x20:
+			out = append(out, Caller{Stack: slot, Return: ret, Call: pm.Resolve(ret - 3), Kind: "jsr"})
+		case pm.Peek(ret-2) == 0x44:
+			out = append(out, Caller{Stack: slot, Return: ret, Call: pm.Resolve(ret - 2), Kind: "bsr"})
+		}
+	}
+	return out
 }
 
 // --- trace ---

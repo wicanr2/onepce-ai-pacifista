@@ -278,6 +278,9 @@ func (s *Server) dispatch(method string, params json.RawMessage) (any, *codedErr
 			Hi       uint32   `json:"hi"`
 			Limit    int      `json:"limit"`
 			IgnorePC []uint16 `json:"ignore_pc"`
+			Bank     *int     `json:"bank"`
+			FileLo   *int64   `json:"file_lo"`
+			FileHi   *int64   `json:"file_hi"`
 		}
 		if e := decode(&p); e != nil {
 			return nil, e
@@ -302,8 +305,32 @@ func (s *Server) dispatch(method string, params json.RawMessage) (any, *codedErr
 		if len(p.IgnorePC) > 0 {
 			entry.w.IgnorePC(p.IgnorePC...)
 		}
+		switch {
+		case p.Bank != nil:
+			entry.w.InBank(*p.Bank)
+		case p.FileLo != nil && p.FileHi != nil:
+			entry.w.InFile(*p.FileLo, *p.FileHi)
+		}
 		s.watches[id] = entry
 		return map[string]any{"id": id, "frame": s.frame()}, nil
+
+	case "callers":
+		var p struct {
+			Max int `json:"max"`
+		}
+		if e := decode(&p); e != nil {
+			return nil, e
+		}
+		if p.Max <= 0 {
+			p.Max = 16
+		}
+		callers := s.m.Callers(p.Max)
+		out := make([]map[string]any, 0, len(callers))
+		for _, c := range callers {
+			out = append(out, map[string]any{"stack": c.Stack, "return": c.Return, "kind": c.Kind,
+				"call": map[string]any{"logical": c.Call.Logical, "physical": c.Call.Physical, "file": c.Call.File}})
+		}
+		return map[string]any{"frame": s.frame(), "callers": out}, nil
 
 	case "events":
 		var p struct {

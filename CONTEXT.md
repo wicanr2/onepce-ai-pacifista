@@ -33,6 +33,7 @@ GUI（M6）在 MVP 之後。
 | W7 | M5 PSG（`docs/spec/psg.md`） | 完成（2026-09-05）：狀態 287 鍵、VGM 逐 byte、音訊主頻率 97.3%／RMS 包絡 0.961 都對上 oracle |
 | W8 | M6 對拍 GUI（`docs/spec/gui.md`） | 完成第一版（2026-09-05）；戰術畫面的 remake 畫布幾何未量，`-ref-scale`／`-ref-offset` 手填 |
 | W10 | `Hold`（`observe.md` O11）：釘住 work RAM byte，程式的寫入被 watch 看到但不落地；CLI `-hold`、RPC `hold`／`unhold` | 完成（2026-09-05）；nectaris 用它把 `$2E21` 釘成腳本骰，原版三回合 10 顆骰全照腳本 |
+| W11 | 對拍工具三件（2026-09-05）：`Event.Code`＋`Watch.InFile`／`InBank`（O12，exec watch 不再在別的 bank 同邏輯位址上誤觸發）、`Callers`（O13，堆疊回傳位址啟發式）、`LoadState` 後 hold 重釘（S7）；CLI `-watch …@bN`、TSV 多 `code` 欄、RPC `callers`／`watch.bank` | 完成；nectaris 端追 AI 分歧時的三個痛點 |
 | W9 | 之後：GUI 的人眼驗收（本機開視窗載 nectaris `-record-dir` 序列）、戰術畫面幾何量測、RPC 的音訊／VGM 方法 | 需要時再做 |
 
 ## 已裁定決策
